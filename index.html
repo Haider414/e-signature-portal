@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dammam Valley E-Signature</title>
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="style.css">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Microsoft Authentication Library (MSAL) -->
+    <script src="https://alcdn.msauth.net/browser/2.30.0/js/msal-browser.min.js"></script>
+</head>
+<body>
+
+    <!-- ==========================================
+         SIDEBAR NAVIGATION
+         ========================================== -->
+    <div class="sidebar">
+        <!-- Company Logo -->
+        <img src="dammam-valley.png" alt="Dammam Valley Logo" class="logo">
+        
+        <!-- Navigation Menu -->
+        <ul class="nav-links">
+            <!-- Navigation triggers showSection() defined in script.js -->
+            <li class="active" onclick="showSection('newRequest')"><i class="fa-solid fa-paper-plane"></i> New Request</li>
+            <li onclick="showSection('dashboard')"><i class="fa-solid fa-chart-line"></i> Dashboard</li>
+            <li><i class="fa-solid fa-gear"></i> Settings</li>
+        </ul>
+    </div>
+
+    <!-- ==========================================
+         MAIN CONTENT AREA
+         ========================================== -->
+    <div class="main-content">
+        
+        <!-- --- Header Section --- -->
+        <header>
+            <h1>E-Signature Portal</h1>
+            
+            <!-- Current User Profile / Greeting -->
+            <!-- Note: In the future, this data can be fetched dynamically via Microsoft Graph API / Teams Context -->
+            <div class="user-profile">
+                <i class="fa-solid fa-circle-user avatar-icon"></i>
+                <div class="user-info">
+                    <span class="greeting">Welcome,</span>
+                    <span class="user-name">IT Administrator</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- --- SECTION 1: Create New Request (Default View) --- -->
+        <section id="newRequestSection" class="card new-request-card">
+            <h2><i class="fa-solid fa-file-signature"></i> Create New Request</h2>
+            
+            <form id="signatureForm">
+                
+                <!-- Recipient Input -->
+                <div class="form-group">
+                    <label>Recipient (Name & Email)</label>
+                    <input type="text" id="recipient" list="employeesList" placeholder="Start typing name OR email..." required>
+                    
+                    <!-- Employee Datalist 
+                         Note: This can be populated dynamically from SharePoint/Azure AD later -->
+                    <datalist id="employeesList">
+                        <option value="Ahmed Almutairi (ahmed@dammamvalley.sa)">
+                        <option value="Khalid Alshahrani (khalid@dammamvalley.sa)">
+                        <option value="Executive Office (ceo@dammamvalley.sa)">
+                    </datalist>
+                </div>
+
+                <!-- File Upload Area -->
+                <div class="form-group">
+                    <label class="section-label">Upload Document (PDF, Word)</label>
+                    <!-- Clicking this box triggers the hidden file input -->
+                    <div class="file-upload-box" onclick="document.getElementById('document').click()">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <input type="file" id="document" accept=".pdf, .doc, .docx" required style="display:none;">
+                        <p id="fileNameDisplay">Drag and drop your file here, or click to browse</p>
+                    </div>
+                </div>
+
+                <!-- Hidden Fields for Sender Information -->
+                <!-- Note: These can be dynamically populated using MS Graph / Teams Context -->
+                <input type="hidden" id="senderName" value="IT Administrator">
+                <input type="hidden" id="senderEmail" value="it_dept@dammamvalley.sa">
+                
+                <!-- Submit Button -->
+                <button type="submit" class="btn-primary">Send for Signature</button>
+            </form>
+        </section>
+
+        <!-- --- SECTION 2: Dashboard (Hidden by Default) --- -->
+        <section id="dashboardSection" class="card dashboard-card" style="display: none;">
+            
+            <!-- Sent Requests Table -->
+            <h2><i class="fa-solid fa-paper-plane"></i> Sent Requests</h2>
+            <table class="requests-table">
+                <thead>
+                    <tr>
+                        <th>Recipient Name</th>
+                        <th>Document</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <!-- Data injected dynamically via script.js (from mock data / future SharePoint list) -->
+                <tbody id="sentRequestsBody">
+                </tbody>
+            </table>
+
+            <!-- Received Requests Table -->
+            <h2 style="margin-top: 40px;"><i class="fa-solid fa-inbox"></i> Received Requests</h2>
+            <table class="requests-table">
+                <thead>
+                    <tr>
+                        <th>Sender Name</th>
+                        <th>Document</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <!-- Data injected dynamically via script.js -->
+                <tbody id="receivedRequestsBody">
+                </tbody>
+            </table>
+        </section>
+
+    </div>
+
+    <!-- ==========================================
+         MODAL: Request Details (Dynamic Popup)
+         ========================================== -->
+    <div id="detailsModal" class="modal">
+        <div class="modal-content">
+            <!-- Close Button -->
+            <span class="close" onclick="closeModal()">&times;</span>
+            
+            <!-- Modal Header -->
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-file-contract"></i> Signature Request Details</h2>
+                <span id="modalStatusBadge" class="status">Loading...</span>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="modal-body">
+                <div class="details-grid">
+                    
+                    <!-- Sender Information Card -->
+                    <div class="detail-box">
+                        <h3><i class="fa-solid fa-paper-plane"></i> Sender Info</h3>
+                        <p><strong>Name:</strong> <span id="modalSenderName"></span></p>
+                        <p><strong>Email:</strong> <span id="modalSenderEmail"></span></p>
+                    </div>
+
+                    <!-- Recipient Information Card -->
+                    <div class="detail-box">
+                        <h3><i class="fa-solid fa-user-pen"></i> Recipient Info</h3>
+                        <p><strong>Name:</strong> <span id="modalRecipientName"></span></p>
+                        <p><strong>Email:</strong> <span id="modalRecipientEmail"></span></p>
+                    </div>
+                </div>
+
+                <!-- Document Metadata Card -->
+                <div class="document-info-box">
+                    <h3><i class="fa-solid fa-file-pdf"></i> Document Information</h3>
+                    <p><strong>File Name:</strong> <span id="modalFileName"></span></p>
+                    <p><strong>Order ID:</strong> <span id="modalOrderId"></span></p>
+                    <p><strong>Date Created:</strong> <span id="modalDate"></span></p>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="modal-actions">
+                    <button class="btn-primary" id="btnViewDocument" style="width: auto;"><i class="fa-solid fa-eye"></i> View Document</button>
+                    <!-- Reminder button visibility controlled by script.js based on status and user role -->
+                    <button class="btn-secondary" id="btnSendReminder" style="width: auto;"><i class="fa-solid fa-bell"></i> Send Reminder</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- External JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>
