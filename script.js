@@ -17,7 +17,7 @@ const msalConfig = {
     auth: {
         clientId: "05bcce89-b01a-4732-857f-8402f7a649f5", 
         authority: "https://login.microsoftonline.com/58d349d2-2319-41f9-9aff-f3055d0a1880", 
-        redirectUri: window.location.href 
+        redirectUri: "https://haider414.github.io/e-signature-portal/" 
     }
 };
 
