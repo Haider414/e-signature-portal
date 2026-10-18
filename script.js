@@ -32,7 +32,7 @@ async function authenticateUser() {
     try {
         // طلب تسجيل الدخول وقراءة البيانات
         const loginResponse = await msalInstance.loginPopup({
-            scopes: ["User.Read", "Sites.Read.All"]
+            scopes: ["User.Read", "Sites.Read.All", "User.ReadBasic.All"]
         });
         
         // استخراج بيانات الموظف
@@ -364,4 +364,107 @@ signatureForm.addEventListener('submit', function(event) {
             submitButton.disabled = false;
         }
     };
+});
+
+/**
+ * ==========================================
+ * 9. SMART SEARCH & CHIPS MANAGEMENT
+ * ==========================================
+ */
+const searchInput = document.getElementById('recipientSearch');
+const dropdown = document.getElementById('searchResultsDropdown');
+const chipsContainer = document.getElementById('recipientChipsContainer');
+const finalRecipients = document.getElementById('finalRecipients');
+
+let selectedRecipients = []; // مصفوفة لتخزين المستلمين المختارين
+
+// استدعاء Graph API للبحث عن موظف
+async function searchUsers(searchTerm) {
+    if(searchTerm.length < 2) {
+        dropdown.style.display = 'none';
+        return;
+    }
+    try {
+        const account = msalInstance.getAllAccounts()[0];
+        const tokenResponse = await msalInstance.acquireTokenSilent({
+            scopes: ["User.ReadBasic.All"], account: account
+        });
+        
+        // جلب الموظفين الذين تبدأ أسماؤهم أو إيميلاتهم بنص البحث
+        const url = `https://graph.microsoft.com/v1.0/users?$filter=startswith(displayName,'${searchTerm}') or startswith(mail,'${searchTerm}')&$top=5`;
+        const response = await fetch(url, { headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` } });
+        const data = await response.json();
+        
+        renderDropdown(data.value);
+    } catch (error) {
+        console.error("Search Error:", error);
+    }
+}
+
+// عرض النتائج في القائمة المنسدلة
+function renderDropdown(users) {
+    dropdown.innerHTML = '';
+    if(!users || users.length === 0) {
+        dropdown.style.display = 'none';
+        return;
+    }
+    
+    users.forEach(user => {
+        let div = document.createElement('div');
+        div.className = 'dropdown-item';
+        div.innerHTML = `<span class="dropdown-item-name">${user.displayName}</span><span class="dropdown-item-email">${user.mail}</span>`;
+        
+        div.onclick = function() {
+            addChip(user.displayName, user.mail);
+            dropdown.style.display = 'none';
+            searchInput.value = '';
+        };
+        dropdown.appendChild(div);
+    });
+    dropdown.style.display = 'block';
+}
+
+// إضافة Chip
+function addChip(name, email) {
+    // منع التكرار
+    if(selectedRecipients.some(r => r.email === email)) return;
+    
+    selectedRecipients.push({ name: name, email: email });
+    updateChipsUI();
+}
+
+// إزالة Chip
+function removeChip(email) {
+    selectedRecipients = selectedRecipients.filter(r => r.email !== email);
+    updateChipsUI();
+}
+
+// تحديث واجهة الـ Chips وقيمة الحقل المخفي
+function updateChipsUI() {
+    // مسح الـ Chips القديمة (مع الحفاظ على مربع البحث)
+    document.querySelectorAll('.chip').forEach(el => el.remove());
+    
+    selectedRecipients.forEach(user => {
+        let chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.innerHTML = `<i class="fa-solid fa-user"></i> ${user.name} <span class="chip-close" onclick="removeChip('${user.email}')">&times;</span>`;
+        chipsContainer.insertBefore(chip, searchInput);
+    });
+    
+    // تحويل المصفوفة إلى نص (JSON) لإرسالها لـ Power Automate
+    finalRecipients.value = JSON.stringify(selectedRecipients);
+}
+
+// مراقبة الكتابة في مربع البحث (مع تأخير بسيط Debounce لعدم إرهاق السيرفر)
+let searchTimeout;
+searchInput.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => searchUsers(this.value), 400);
+});
+
+// إغلاق القائمة المنسدلة عند النقر في أي مكان آخر
+document.addEventListener('click', function(e) {
+    if(e.target !== searchInput && e.target !== dropdown) {
+        dropdown.style.display = 'none';
+    }
 });

@@ -56,18 +56,21 @@
             
             <form id="signatureForm">
                 
-                <!-- Recipient Input -->
+                <!-- Smart Recipient Input (Supports Multiple Chips) -->
                 <div class="form-group">
-                    <label>Recipient (Name & Email)</label>
-                    <input type="text" id="recipient" list="employeesList" placeholder="Start typing name OR email..." required>
+                    <label>Recipient(s) (Name & Email)</label>
+                    <div class="chips-container" id="recipientChipsContainer" onclick="document.getElementById('recipientSearch').focus()">
+                        <!-- Chips will be dynamically added here -->
+                        <input type="text" id="recipientSearch" placeholder="Type name or email to search Azure AD..." autocomplete="off">
+                    </div>
                     
-                    <!-- Employee Datalist 
-                         Note: This can be populated dynamically from SharePoint/Azure AD later -->
-                    <datalist id="employeesList">
-                        <option value="Ahmed Almutairi (ahmed@dammamvalley.sa)">
-                        <option value="Khalid Alshahrani (khalid@dammamvalley.sa)">
-                        <option value="Executive Office (ceo@dammamvalley.sa)">
-                    </datalist>
+                    <!-- Dropdown for Azure AD suggestions -->
+                    <div id="searchResultsDropdown" class="dropdown-content" style="display: none;">
+                        <!-- Results injected via script.js -->
+                    </div>
+                    
+                    <!-- Hidden input to store final array of emails for Form Submit -->
+                    <input type="hidden" id="finalRecipients" required>
                 </div>
 
                 <!-- File Upload Area -->
