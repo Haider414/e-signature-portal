@@ -265,24 +265,77 @@ window.onclick = function(event) {
 
 /**
  * ==========================================
- * 5. FORM SUBMISSION & API INTEGRATION
+ * 5. FILE UPLOAD & MANAGEMENT SYSTEM
  * ==========================================
- * Handles the file upload UI, Base64 conversion, and POST request to Power Automate.
  */
-
-// Handle File Input UI (Update text and color when a file is selected)
 const fileInput = document.getElementById('document');
 const fileNameDisplay = document.getElementById('fileNameDisplay');
+const filesContainer = document.getElementById('uploadedFilesContainer');
+
+// DataTransfer object لحفظ وإدارة الملفات برمجياً 
+// (يسمح بالإضافة والحذف المتكرر دون فقدان الملفات السابقة)
+let dt = new DataTransfer(); 
 
 fileInput.addEventListener('change', function() {
-    if(this.files && this.files.length > 0) {
-        fileNameDisplay.innerHTML = `<strong><i class="fa-solid fa-file-circle-check"></i> File Attached:</strong> ${this.files[0].name}`;
-        fileNameDisplay.style.color = '#00A896'; // Dammam Valley Teal
-    } else {
-        fileNameDisplay.innerHTML = 'Drag and drop your file here, or click to browse';
-        fileNameDisplay.style.color = '#666666';
+    // إضافة الملفات الجديدة إلى الكائن dt
+    for (let i = 0; i < this.files.length; i++) {
+        // يمكن إضافة تحقق من نوع الملف (PDF, Word) أو حجمه هنا
+        dt.items.add(this.files[i]);
     }
+    
+    // تحديث ملفات الحقل الفعلي (input) لتطابق ملفات الـ dt
+    this.files = dt.files;
+    
+    // إعادة رسم قائمة الملفات
+    renderFilesList();
 });
+
+// دالة لرسم قائمة الملفات في الواجهة
+function renderFilesList() {
+    filesContainer.innerHTML = ''; // مسح القائمة الحالية
+    
+    if (dt.files.length > 0) {
+        fileNameDisplay.style.display = 'none'; // إخفاء نص "اسحب وأفلت"
+        
+        for (let i = 0; i < dt.files.length; i++) {
+            const file = dt.files[i];
+            
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            
+            // أيقونة تتغير حسب نوع الملف (اختياري)
+            let iconClass = 'fa-file-lines';
+            if (file.type.includes('pdf')) iconClass = 'fa-file-pdf';
+            if (file.type.includes('word') || file.name.endsWith('.docx')) iconClass = 'fa-file-word';
+            
+            fileItem.innerHTML = `
+                <div class="file-item-info">
+                    <i class="fa-solid ${iconClass}"></i> 
+                    <span>${file.name} <small style="color:#888;">(${(file.size / 1024).toFixed(1)} KB)</small></span>
+                </div>
+                <i class="fa-solid fa-xmark file-item-remove" onclick="removeFile(${i}, event)" title="Remove File"></i>
+            `;
+            
+            filesContainer.appendChild(fileItem);
+        }
+    } else {
+        fileNameDisplay.style.display = 'block'; // إظهار النص إذا كانت القائمة فارغة
+    }
+}
+
+// دالة لحذف ملف معين
+function removeFile(index, event) {
+    event.stopPropagation(); // منع فتح نافذة اختيار الملفات عند الضغط على زر X
+    
+    // إزالة الملف من كائن الـ DataTransfer
+    dt.items.remove(index);
+    
+    // تحديث الحقل الفعلي
+    fileInput.files = dt.files;
+    
+    // إعادة رسم القائمة
+    renderFilesList();
+}
 
 // Power Automate Webhook URL
 // IMPORTANT: Keep this URL secure.
@@ -291,80 +344,161 @@ const powerAutomateUrl = "https://default58d349d2231941f99afff3055d0a18.80.envir
 const signatureForm = document.getElementById('signatureForm');
 const submitButton = signatureForm.querySelector('.btn-primary');
 
-signatureForm.addEventListener('submit', function(event) {
-    event.preventDefault(); // Prevent standard browser form submission
+/**
+ * ==========================================
+ * 10. SENDING OPTIONS MODAL & FINAL SUBMIT
+ * ==========================================
+ */
 
-    // UX Enhancement: Show a loading spinner on the submit button
-    const originalBtnText = submitButton.innerHTML;
-    submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
-    submitButton.disabled = true;
-
-    // Retrieve input values
-    const recipientInput = document.getElementById('recipient').value;
-    const documentFile = document.getElementById('document').files[0];
-    const senderEmail = document.getElementById('senderEmail').value;
-    const senderName = document.getElementById('senderName').value;
-
-    // Parse the Recipient input (Format expected: "Name (Email)")
-    let extractedName = recipientInput;
-    let extractedEmail = recipientInput;
+// 1. فتح نافذة الخيارات وتعبئة البيانات (Review & Configure)
+function openOptionsModal() {
+    const documentFiles = document.getElementById('document').files;
     
-    if(recipientInput.includes('(') && recipientInput.includes(')')) {
-        extractedName = recipientInput.split(' (')[0].trim();
-        extractedEmail = recipientInput.substring(
-            recipientInput.indexOf("(") + 1, 
-            recipientInput.lastIndexOf(")")
-        ).trim();
+    // التحقق من وجود مستلمين وملفات قبل المتابعة
+    if (selectedRecipients.length === 0) {
+        alert("الرجاء اختيار مستلم واحد على الأقل.");
+        return;
+    }
+    if (documentFiles.length === 0) {
+        alert("الرجاء إرفاق ملف واحد على الأقل.");
+        return;
     }
 
-    // Convert the selected file to a Base64 string for API transmission
-    const reader = new FileReader();
-    reader.readAsDataURL(documentFile);
-    
-    reader.onload = async function () {
-        // Strip out the Data URL metadata prefix to get the raw Base64 string
-        const base64FileContent = reader.result.split(',')[1];
+    // عرض الملفات في النافذة
+    const filesList = document.getElementById('summaryFilesList');
+    filesList.innerHTML = '';
+    for (let i = 0; i < documentFiles.length; i++) {
+        filesList.innerHTML += `<li><i class="fa-solid fa-file-lines" style="color:var(--dv-teal); margin-right:5px;"></i> ${documentFiles[i].name}</li>`;
+    }
 
-        // Construct the JSON payload matching the Power Automate schema
+    // عرض الأسماء مع أزرار الترتيب
+    renderSummaryRecipients();
+
+    // إظهار النافذة
+    document.getElementById('sendOptionsModal').style.display = 'block';
+}
+
+function closeOptionsModal() {
+    document.getElementById('sendOptionsModal').style.display = 'none';
+}
+
+// 2. دالة رسم قائمة المستلمين مع أسهم الترتيب
+function renderSummaryRecipients() {
+    const list = document.getElementById('summaryRecipientsList');
+    list.innerHTML = '';
+    
+    selectedRecipients.forEach((rec, index) => {
+        const li = document.createElement('li');
+        
+        // تفاصيل الموظف
+        const info = document.createElement('span');
+        info.innerHTML = `<strong>${rec.name}</strong> <span style="font-size:11px; color:#888;">(${rec.email})</span>`;
+        
+        // أزرار التحكم (أسهم لأعلى ولأسفل)
+        const controls = document.createElement('div');
+        controls.className = 'reorder-controls';
+        
+        const upBtn = document.createElement('button');
+        upBtn.innerHTML = '<i class="fa-solid fa-chevron-up"></i>';
+        upBtn.disabled = index === 0; // تعطيل السهم الأعلى لأول شخص
+        upBtn.onclick = () => moveRecipient(index, -1);
+        
+        const downBtn = document.createElement('button');
+        downBtn.innerHTML = '<i class="fa-solid fa-chevron-down"></i>';
+        downBtn.disabled = index === selectedRecipients.length - 1; // تعطيل السهم الأسفل لآخر شخص
+        downBtn.onclick = () => moveRecipient(index, 1);
+        
+        controls.appendChild(upBtn);
+        controls.appendChild(downBtn);
+        
+        li.appendChild(info);
+        li.appendChild(controls);
+        list.appendChild(li);
+    });
+}
+
+// 3. دالة تحريك الموظف في الترتيب (لأعلى أو لأسفل)
+function moveRecipient(index, direction) {
+    // تبديل المواقع في المصفوفة
+    const temp = selectedRecipients[index];
+    selectedRecipients[index] = selectedRecipients[index + direction];
+    selectedRecipients[index + direction] = temp;
+    
+    // إعادة رسم القائمة فوراً
+    renderSummaryRecipients();
+}
+
+// 4. الإرسال النهائي إلى Power Automate
+async function submitFinalRequest(signaturePlacement) {
+    const routingType = document.querySelector('input[name="modalRouting"]:checked').value;
+    const documentFiles = document.getElementById('document').files;
+    
+    const senderName = document.getElementById('senderName').value || currentUserEmail;
+    const senderEmail = document.getElementById('senderEmail').value || currentUserEmail;
+
+    // تغيير شكل الواجهة أثناء التحميل
+    const modalContent = document.querySelector('#sendOptionsModal .modal-content');
+    const originalContent = modalContent.innerHTML;
+    modalContent.innerHTML = '<div style="text-align:center; padding: 40px;"><h2><i class="fa-solid fa-spinner fa-spin" style="color:var(--dv-teal);"></i> جاري إعداد وتشفير الملفات...</h2><p>يرجى الانتظار، يتم الآن الاتصال بخوادم Adobe Sign</p></div>';
+
+    try {
+        // تحويل جميع الملفات المرفقة إلى Base64
+        let filesData = [];
+        for (let i = 0; i < documentFiles.length; i++) {
+            const base64String = await convertFileToBase64(documentFiles[i]);
+            filesData.push({
+                fileName: documentFiles[i].name,
+                fileContent: base64String
+            });
+        }
+
+        // تجهيز حزمة البيانات الكاملة
         const payload = {
             senderName: senderName,
-            recipientName: extractedName,
-            recipientEmail: extractedEmail,
             senderEmail: senderEmail,
-            fileName: documentFile.name,
-            fileContent: base64FileContent
+            recipients: selectedRecipients, // مصفوفة الأسماء بالترتيب الجديد
+            routingType: routingType,       // sequential أو parallel
+            signaturePlacement: signaturePlacement, // auto أو manual
+            files: filesData
         };
 
-        try {
-            // Execute the POST request to trigger the Flow
-            const response = await fetch(powerAutomateUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
+        // إرسال البيانات
+        const response = await fetch(powerAutomateUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
 
-            if(response.ok) {
-                alert("Request sent successfully! \nتم إرسال الطلب بنجاح إلى " + extractedName);
-                
-                // Reset form UI upon success
-                signatureForm.reset(); 
-                fileNameDisplay.innerHTML = 'Drag and drop your file here, or click to browse';
-                fileNameDisplay.style.color = '#666666';
-            } else {
-                alert("Error sending request. Please check your connection.");
-            }
-        } catch (error) {
-            console.error("Transmission Error:", error);
-            alert("An error occurred while sending the document.");
-        } finally {
-            // Restore the submit button to its original state
-            submitButton.innerHTML = originalBtnText;
-            submitButton.disabled = false;
+        if(response.ok) {
+            alert("تم إرسال الطلب بنجاح! سيتم توجيهه حسب إعداداتك.");
+            // إعادة ضبط كل شيء
+            document.getElementById('signatureForm').reset();
+            selectedRecipients = [];
+            updateChipsUI();
+            document.getElementById('fileNameDisplay').innerHTML = 'Drag and drop your files here, or click to browse';
+            closeOptionsModal();
+        } else {
+            throw new Error("Server Response Error");
         }
-    };
-});
+
+    } catch (error) {
+        console.error("Submission Error:", error);
+        alert("حدث خطأ أثناء الإرسال. يرجى التأكد من اتصالك أو التحقق من Power Automate.");
+    } finally {
+        // إعادة النافذة لحالتها الطبيعية في حال حدث خطأ
+        modalContent.innerHTML = originalContent;
+    }
+}
+
+// دالة مساعدة لتحويل الملفات
+function convertFileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = error => reject(error);
+    });
+}
 
 /**
  * ==========================================
@@ -430,6 +564,26 @@ let searchTimeout;
 searchInput.addEventListener('input', function() {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(() => searchUsers(this.value), 200); // 200 ملي ثانية فقط
+});
+
+// مستمع لحدث الضغط على Enter في مربع البحث
+searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault(); // منع إرسال النموذج (Form Submit)
+        const val = this.value.trim();
+        
+        // التحقق البسيط من صيغة الإيميل
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        
+        if (emailRegex.test(val)) {
+            // إذا كان النص إيميلاً صالحاً، نضيفه كـ Chip (الاسم والإيميل متطابقان)
+            addChip(val, val);
+            this.value = ''; // تفريغ المربع
+            dropdown.style.display = 'none'; // إخفاء القائمة المنسدلة
+        } else if (val.length > 0) {
+            alert("يرجى إدخال بريد إلكتروني صحيح (مثل: name@company.com) لإضافته يدوياً.");
+        }
+    }
 });
 
 // إغلاق القائمة المنسدلة عند النقر في أي مكان آخر
@@ -500,3 +654,4 @@ document.addEventListener('click', function(e) {
         dropdown.style.display = 'none';
     }
 });
+

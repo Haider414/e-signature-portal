@@ -483,3 +483,84 @@ input[type="text"]:focus {
     .details-grid { grid-template-columns: 1fr; } /* Stack details on mobile */
     .requests-table th, .requests-table td { padding: 10px; font-size: 13px; }
 }
+
+/* ==========================================
+   11. REORDER LIST (Sending Options Modal)
+   ========================================== */
+.reorder-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.reorder-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    border: 1px solid var(--border-color);
+    padding: 8px 15px;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+
+.reorder-controls button {
+    background: none;
+    border: none;
+    color: var(--dv-teal);
+    cursor: pointer;
+    padding: 5px;
+    font-size: 15px;
+    transition: color 0.2s;
+}
+
+.reorder-controls button:hover {
+    color: var(--dv-dark-blue);
+}
+
+.reorder-controls button:disabled {
+    color: #d1d5db;
+    cursor: not-allowed;
+}
+
+/* ==========================================
+   12. FILE UPLOAD LIST & PREVIEW
+   ========================================== */
+.uploaded-files-list {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8fcfb;
+    border: 1px solid var(--dv-teal);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--dv-dark-blue);
+}
+
+.file-item-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.file-item-remove {
+    color: #ef4444;
+    cursor: pointer;
+    font-size: 14px;
+    transition: color 0.2s;
+}
+
+.file-item-remove:hover {
+    color: #b91c1c;
+}

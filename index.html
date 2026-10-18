@@ -80,48 +80,16 @@
                         <input type="file" id="document" accept=".pdf, .doc, .docx" multiple required style="display:none;">
                         <p id="fileNameDisplay">Drag and drop your files here, or click to browse</p>
                     </div>
-                </div>
-
-                <!-- Advanced Sending Options Grid -->
-                <div class="advanced-options-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
-                    
-                    <!-- Routing Options -->
-                    <div class="option-box" style="background: #f8fcfb; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
-                        <label style="margin-bottom: 10px; border-bottom: 1px dashed #ccc; padding-bottom: 8px; color: var(--dv-dark-blue);">
-                            <i class="fa-solid fa-route"></i> Routing Order
-                        </label>
-                        <div style="margin-top: 10px;">
-                            <input type="radio" id="routeSequential" name="routingOrder" value="sequential" checked>
-                            <label for="routeSequential" style="display:inline; font-weight:normal; margin-left: 5px; cursor: pointer;">Sequential ( بالترتيب )</label>
-                        </div>
-                        <div style="margin-top: 8px;">
-                            <input type="radio" id="routeParallel" name="routingOrder" value="parallel">
-                            <label for="routeParallel" style="display:inline; font-weight:normal; margin-left: 5px; cursor: pointer;">Individual ( نسخة منفصلة لكل شخص )</label>
-                        </div>
-                    </div>
-
-                    <!-- Signature Placement Options -->
-                    <div class="option-box" style="background: #f8fcfb; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
-                        <label style="margin-bottom: 10px; border-bottom: 1px dashed #ccc; padding-bottom: 8px; color: var(--dv-dark-blue);">
-                            <i class="fa-solid fa-pen-nib"></i> Signature Placement
-                        </label>
-                        <div style="margin-top: 10px;">
-                            <input type="radio" id="signAuto" name="signaturePlacement" value="auto" checked>
-                            <label for="signAuto" style="display:inline; font-weight:normal; margin-left: 5px; cursor: pointer;">Automatic ( توقيع تلقائي في النهاية )</label>
-                        </div>
-                        <div style="margin-top: 8px;">
-                            <input type="radio" id="signManual" name="signaturePlacement" value="manual">
-                            <label for="signManual" style="display:inline; font-weight:normal; margin-left: 5px; cursor: pointer;">Manual ( سأقوم بتحديد مكان التوقيع يدوياً )</label>
-                        </div>
-                    </div>
+                    <!-- هذه الحاوية الجديدة ستعرض الملفات المختارة بشكل أنيق -->
+                    <div id="uploadedFilesContainer" class="uploaded-files-list"></div>
                 </div>
 
                 <!-- Hidden Fields for Sender Information -->
                 <input type="hidden" id="senderName" value="">
                 <input type="hidden" id="senderEmail" value="">
                 
-                <!-- Submit Button -->
-                <button type="submit" class="btn-primary">Continue & Send</button>
+                <!-- زر المتابعة لفتح نافذة الخيارات -->
+                <button type="button" class="btn-primary" onclick="openOptionsModal()">Continue <i class="fa-solid fa-arrow-right"></i></button>
             </form>
         </section>
 
@@ -211,6 +179,58 @@
                     <button class="btn-primary" id="btnViewDocument" style="width: auto;"><i class="fa-solid fa-eye"></i> View Document</button>
                     <!-- Reminder button visibility controlled by script.js based on status and user role -->
                     <button class="btn-secondary" id="btnSendReminder" style="width: auto;"><i class="fa-solid fa-bell"></i> Send Reminder</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL: Sending Options & Summary
+         ========================================== -->
+    <div id="sendOptionsModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="close" onclick="closeOptionsModal()">&times;</span>
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-sliders"></i> Sending Options</h2>
+            </div>
+            
+            <div class="modal-body">
+                <!-- عرض الملفات المختارة -->
+                <div class="summary-section" style="margin-bottom: 20px;">
+                    <h3 style="font-size: 14px; color: var(--dv-dark-blue); border-bottom: 1px dashed var(--border-color); padding-bottom: 8px; margin-bottom: 10px;">
+                        <i class="fa-solid fa-file-pdf"></i> Selected Files
+                    </h3>
+                    <ul id="summaryFilesList" style="list-style: none; padding-left: 0; font-size: 13px; color: var(--text-muted);"></ul>
+                </div>
+
+                <!-- عرض وترتيب المستلمين -->
+                <div class="summary-section" style="margin-bottom: 25px;">
+                    <h3 style="font-size: 14px; color: var(--dv-dark-blue); border-bottom: 1px dashed var(--border-color); padding-bottom: 8px; margin-bottom: 10px;">
+                        <i class="fa-solid fa-users"></i> Recipients Order 
+                        <span style="font-size: 11px; font-weight: normal; color: #888;">(Use arrows to reorder - استخدم الأسهم للترتيب)</span>
+                    </h3>
+                    <ul id="summaryRecipientsList" class="reorder-list">
+                        <!-- سيتم تعبئة الأسماء هنا برمجياً -->
+                    </ul>
+                </div>
+
+                <!-- خيارات طريقة الإرسال -->
+                <div class="routing-options" style="background: #f8fcfb; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 25px;">
+                    <label style="font-weight: bold; color: var(--dv-dark-blue); display: block; margin-bottom: 10px;">Routing Type (طريقة الإرسال):</label>
+                    <div style="display: flex; gap: 20px;">
+                        <label style="cursor: pointer;"><input type="radio" name="modalRouting" value="sequential" checked> Sequential (بالترتيب)</label>
+                        <label style="cursor: pointer;"><input type="radio" name="modalRouting" value="parallel"> Individual (نسخ فردية)</label>
+                    </div>
+                </div>
+
+                <!-- أزرار الإرسال النهائية -->
+                <div class="modal-actions" style="display: flex; gap: 15px; justify-content: space-between; border-top: none; padding-top: 0;">
+                    <button class="btn-secondary" style="flex: 1; text-align: center; justify-content: center;" onclick="submitFinalRequest('manual')">
+                        <i class="fa-solid fa-pen-nib"></i> Manual Placement<br><small>(تعديل التوقيع يدوياً)</small>
+                    </button>
+                    <button class="btn-primary" style="flex: 1; text-align: center; justify-content: center;" onclick="submitFinalRequest('auto')">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Auto Placement<br><small>(توقيع تلقائي)</small>
+                    </button>
                 </div>
             </div>
         </div>
