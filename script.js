@@ -24,6 +24,8 @@ const msalConfig = {
 
 const msalInstance = new msal.PublicClientApplication(msalConfig);
 let currentUserEmail = ""; // سنملأ هذا المتغير برمجياً بعد تسجيل الدخول
+// مصفوفة لحفظ البيانات الحقيقية القادمة من SharePoint
+let realRequests = [];
 
 // 2. دالة تسجيل الدخول التلقائي
 async function authenticateUser() {
@@ -109,42 +111,34 @@ async function loadDashboardData() {
     receivedBody.innerHTML = '<tr><td colspan="5">جاري التحميل من SharePoint...</td></tr>'; 
 
     try {
-        // التأكد من تسجيل الدخول وجلب رمز المصادقة
         const account = msalInstance.getAllAccounts()[0];
-        if (!account) {
-            console.error("المستخدم غير مسجل الدخول.");
-            return;
-        }
+        if (!account) return;
 
         const tokenResponse = await msalInstance.acquireTokenSilent({
             scopes: ["Sites.Read.All"],
             account: account
         });
 
-        // إعداد رابط Microsoft Graph API لجلب بيانات القائمة
         const siteHostname = "dammamvalleyd.sharepoint.com"; 
         const sitePath = "/sites/E-SignatureSystem";
-        const listId = "4de9b715-9c83-4c02-a4aa-670346ce2254"; // List ID المستخرج
+        const listId = "4de9b715-9c83-4c02-a4aa-670346ce2254"; 
         
-        // استدعاء واجهة برمجة التطبيقات
         const graphUrl = `https://graph.microsoft.com/v1.0/sites/${siteHostname}:${sitePath}:/lists/${listId}/items?$expand=fields`;
         
         const response = await fetch(graphUrl, {
-            headers: {
-                "Authorization": `Bearer ${tokenResponse.accessToken}`
-            }
+            headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` }
         });
 
-        if (!response.ok) {
-            throw new Error(`خطأ في جلب البيانات: ${response.statusText}`);
-        }
+        if (!response.ok) throw new Error("خطأ في جلب البيانات");
 
         const data = await response.json();
         const items = data.value;
 
-        // مسح الجداول قبل تعبئتها
         sentBody.innerHTML = '';
         receivedBody.innerHTML = '';
+        
+        // تفريغ المصفوفة قبل تعبئتها من جديد
+        realRequests = []; 
 
         if(items.length === 0){
              sentBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">لا توجد طلبات مرسلة</td></tr>';
@@ -152,22 +146,23 @@ async function loadDashboardData() {
              return;
         }
 
-        // تحديث البيانات في الجداول
         items.forEach((item, index) => {
             const fields = item.fields;
-            
-            // قراءة البيانات من أعمدة شيربوينت التي أنشأتها
-            // ملاحظة: تأكد أن الأسماء الداخلية (Internal Names) للأعمدة مطابقة لهذه
             const request = {
-                id: fields.Title || "N/A", // استخدمنا Title لرقم الطلب
-                senderName: fields.SenderName || "N/A",
-                senderEmail: fields.SenderEmail || "N/A",
-                recipientName: fields.RecipientName || "N/A",
-                recipientEmail: fields.RecipientEmail || "N/A",
-                fileName: fields.FileName || "N/A",
+                id: fields.OrderNumber || fields.AgreementID || fields.OData__x004f_rderNumber || "N/A", 
+                senderName: fields.SenderName || fields.Sender_x0020_Name || "N/A",
+                senderEmail: fields.SenderEmail || fields.Sender_x0020_Email || "N/A",
+                recipientName: fields.RecipientName || fields.Recipient_x0020_Name || fields.RecipientEmail || "N/A",
+                recipientEmail: fields.RecipientEmail || fields.Recipient_x0020_Email || "N/A",
+                fileName: fields.Title || "N/A", 
                 date: new Date(item.createdDateTime).toLocaleDateString(),
-                status: fields.RequestStatus || "Pending" // بناءً على عمود Status الخاص بك
+                status: fields.RequestStatus || fields.Request_x0020_Status || "Pending" 
             };
+
+            // حفظ الطلب في المصفوفة الحقيقية
+            realRequests.push(request);
+            // تحديد رقم فهرس هذا الطلب في المصفوفة
+            const currentIndex = realRequests.length - 1;
 
             let statusClass = 'pending';
             if (request.status === 'Completed' || request.status === 'Signed') statusClass = 'signed';
@@ -175,32 +170,30 @@ async function loadDashboardData() {
             
             let tr = document.createElement('tr');
             
-            // عرض الطلبات التي أرسلها المستخدم
             if (request.senderEmail === currentUserEmail) {
                 tr.innerHTML = `
                     <td>${request.recipientName}</td>
                     <td>${request.fileName}</td>
                     <td>${request.date}</td>
                     <td><span class="status ${statusClass}">${request.status}</span></td>
-                    <td><button class="btn-view" onclick="alert('تفاصيل الطلب: ${request.id}')">View Details</button></td>
+                    <td><button class="btn-view" onclick="openDynamicModal(${currentIndex})">View Details</button></td>
                 `;
                 sentBody.appendChild(tr);
             } 
-            // عرض الطلبات التي استلمها المستخدم
             else if (request.recipientEmail === currentUserEmail) {
                 tr.innerHTML = `
                     <td>${request.senderName}</td>
                     <td>${request.fileName}</td>
                     <td>${request.date}</td>
                     <td><span class="status ${statusClass}">${request.status}</span></td>
-                    <td><button class="btn-view" onclick="alert('تفاصيل الطلب: ${request.id}')">View Details</button></td>
+                    <td><button class="btn-view" onclick="openDynamicModal(${currentIndex})">View Details</button></td>
                 `;
                 receivedBody.appendChild(tr);
             }
         });
         
     } catch (error) {
-        console.error("فشل في جلب بيانات SharePoint:", error);
+        console.error(error);
         sentBody.innerHTML = '<tr><td colspan="5" style="color:red; text-align:center;">حدث خطأ أثناء الاتصال بقاعدة البيانات.</td></tr>';
     }
 }
@@ -217,9 +210,9 @@ document.addEventListener('DOMContentLoaded', loadDashboardData);
  */
 
 function openDynamicModal(index) {
-    const request = mockRequests[index];
+    // التعديل هنا: قراءة البيانات من المصفوفة الحقيقية
+    const request = realRequests[index];
     
-    // Inject specific request data into the modal's HTML elements
     document.getElementById('modalSenderName').textContent = request.senderName;
     document.getElementById('modalSenderEmail').textContent = request.senderEmail;
     
@@ -230,11 +223,11 @@ function openDynamicModal(index) {
     document.getElementById('modalOrderId').textContent = request.id;
     document.getElementById('modalDate').textContent = request.date;
     
-    // Update the visual status badge in the modal header
     const statusBadge = document.getElementById('modalStatusBadge');
     statusBadge.textContent = request.status;
     
-    if (request.status === 'Signed') {
+    // دعم حالة Completed
+    if (request.status === 'Signed' || request.status === 'Completed') {
         statusBadge.className = 'status signed';
     } else if (request.status === 'Declined') {
         statusBadge.className = 'status declined'; 
@@ -242,20 +235,18 @@ function openDynamicModal(index) {
         statusBadge.className = 'status pending';
     }
     
-    // Reminder Button Logic: 
-    // Only show if the status is "Pending" AND the current user is the original sender
     const btnReminder = document.getElementById('btnSendReminder');
     if (request.status === 'Pending' && request.senderEmail === currentUserEmail) {
         btnReminder.style.display = 'block'; 
     } else {
         btnReminder.style.display = 'none';  
     }
-    // (View Document)
+
     const btnView = document.getElementById('btnViewDocument');
     btnView.onclick = function() {
         alert("This feature will be connected to SharePoint soon to view: " + request.fileName);
     };
-    // Display the modal overlay
+    
     document.getElementById('detailsModal').style.display = 'block';
 }
 
