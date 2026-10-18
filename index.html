@@ -65,32 +65,63 @@
                     </div>
                     
                     <!-- Dropdown for Azure AD suggestions -->
-                    <div id="searchResultsDropdown" class="dropdown-content" style="display: none;">
-                        <!-- Results injected via script.js -->
-                    </div>
+                    <div id="searchResultsDropdown" class="dropdown-content" style="display: none;"></div>
                     
                     <!-- Hidden input to store final array of emails for Form Submit -->
                     <input type="hidden" id="finalRecipients" required>
                 </div>
 
-                <!-- File Upload Area -->
+                <!-- File Upload Area (Updated for multiple files) -->
                 <div class="form-group">
-                    <label class="section-label">Upload Document (PDF, Word)</label>
-                    <!-- Clicking this box triggers the hidden file input -->
+                    <label class="section-label">Upload Document(s) (PDF, Word)</label>
                     <div class="file-upload-box" onclick="document.getElementById('document').click()">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
-                        <input type="file" id="document" accept=".pdf, .doc, .docx" required style="display:none;">
-                        <p id="fileNameDisplay">Drag and drop your file here, or click to browse</p>
+                        <!-- أضفنا كلمة multiple للسماح برفع أكثر من ملف -->
+                        <input type="file" id="document" accept=".pdf, .doc, .docx" multiple required style="display:none;">
+                        <p id="fileNameDisplay">Drag and drop your files here, or click to browse</p>
+                    </div>
+                </div>
+
+                <!-- Advanced Sending Options Grid -->
+                <div class="advanced-options-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
+                    
+                    <!-- Routing Options -->
+                    <div class="option-box" style="background: #f8fcfb; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <label style="margin-bottom: 10px; border-bottom: 1px dashed #ccc; padding-bottom: 8px; color: var(--dv-dark-blue);">
+                            <i class="fa-solid fa-route"></i> Routing Order
+                        </label>
+                        <div style="margin-top: 10px;">
+                            <input type="radio" id="routeSequential" name="routingOrder" value="sequential" checked>
+                            <label for="routeSequential" style="display:inline; font-weight:normal; margin-left: 5px; cursor: pointer;">Sequential ( بالترتيب )</label>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <input type="radio" id="routeParallel" name="routingOrder" value="parallel">
+                            <label for="routeParallel" style="display:inline; font-weight:normal; margin-left: 5px; cursor: pointer;">Individual ( نسخة منفصلة لكل شخص )</label>
+                        </div>
+                    </div>
+
+                    <!-- Signature Placement Options -->
+                    <div class="option-box" style="background: #f8fcfb; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <label style="margin-bottom: 10px; border-bottom: 1px dashed #ccc; padding-bottom: 8px; color: var(--dv-dark-blue);">
+                            <i class="fa-solid fa-pen-nib"></i> Signature Placement
+                        </label>
+                        <div style="margin-top: 10px;">
+                            <input type="radio" id="signAuto" name="signaturePlacement" value="auto" checked>
+                            <label for="signAuto" style="display:inline; font-weight:normal; margin-left: 5px; cursor: pointer;">Automatic ( توقيع تلقائي في النهاية )</label>
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <input type="radio" id="signManual" name="signaturePlacement" value="manual">
+                            <label for="signManual" style="display:inline; font-weight:normal; margin-left: 5px; cursor: pointer;">Manual ( سأقوم بتحديد مكان التوقيع يدوياً )</label>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Hidden Fields for Sender Information -->
-                <!-- Note: These can be dynamically populated using MS Graph / Teams Context -->
-                <input type="hidden" id="senderName" value="IT Administrator">
-                <input type="hidden" id="senderEmail" value="it_dept@dammamvalley.sa">
+                <input type="hidden" id="senderName" value="">
+                <input type="hidden" id="senderEmail" value="">
                 
                 <!-- Submit Button -->
-                <button type="submit" class="btn-primary">Send for Signature</button>
+                <button type="submit" class="btn-primary">Continue & Send</button>
             </form>
         </section>
 
