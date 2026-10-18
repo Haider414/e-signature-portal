@@ -42,6 +42,8 @@ async function authenticateUser() {
         
         // 3. تحديث الواجهة (HTML) ببيانات الموظف الحقيقية
         document.querySelector('.user-name').textContent = fullName;
+        document.getElementById('menuUserName').textContent = fullName;
+        document.getElementById('menuUserEmail').textContent = currentUserEmail;
         document.getElementById('senderName').value = fullName;
         document.getElementById('senderEmail').value = currentUserEmail;
         
@@ -60,6 +62,38 @@ async function authenticateUser() {
 window.addEventListener('load', () => {
     authenticateUser();
 });
+
+
+/**
+ * ==========================================
+ * 11. USER PROFILE & LOGOUT MANAGEMENT
+ * ==========================================
+ */
+
+// إظهار وإخفاء القائمة المنسدلة
+function toggleProfileMenu(event) {
+    const menu = document.getElementById('profileMenu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+// إغلاق القائمة عند النقر في أي مكان خارجها
+document.addEventListener('click', function(event) {
+    const profileBtn = document.getElementById('userProfileBtn');
+    const profileMenu = document.getElementById('profileMenu');
+    
+    if (profileMenu && !profileBtn.contains(event.target)) {
+        profileMenu.style.display = 'none';
+    }
+});
+
+// دالة تسجيل الخروج من تطبيق Azure (MSAL)
+function logoutUser() {
+    // استخدم رابط موقعك الحالي (GitHub Pages) للعودة إليه بعد تسجيل الخروج
+    const logoutRequest = {
+        postLogoutRedirectUri: window.location.origin + window.location.pathname
+    };
+    msalInstance.logoutRedirect(logoutRequest);
+}
 
 /**
  * ==========================================
