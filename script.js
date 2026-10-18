@@ -59,64 +59,6 @@ window.addEventListener('load', () => {
     authenticateUser();
 });
 
-// Mock database for testing the UI
-const mockRequests = [
-    // --- Sent Requests (Created by the current user) ---
-    {
-        id: "REQ-2026-001",
-        senderName: "IT Administrator",
-        senderEmail: "it_dept@dammamvalley.sa",
-        recipientName: "Ahmed Almutairi",
-        recipientEmail: "ahmed@dammamvalley.sa",
-        fileName: "NDA_Contract.pdf",
-        date: "Oct 06, 2026",
-        status: "Pending"
-    },
-    {
-        id: "REQ-2026-002",
-        senderName: "IT Administrator",
-        senderEmail: "it_dept@dammamvalley.sa",
-        recipientName: "External Partner",
-        recipientEmail: "partner@external.com",
-        fileName: "Vendor_Agreement.pdf",
-        date: "Oct 08, 2026",
-        status: "Signed"
-    },
-    {
-        id: "REQ-2026-003",
-        senderName: "IT Administrator",
-        senderEmail: "it_dept@dammamvalley.sa",
-        recipientName: "Khalid Alshahrani",
-        recipientEmail: "khalid@dammamvalley.sa",
-        fileName: "IT_Policy_Acknowledgment.pdf",
-        date: "Oct 10, 2026",
-        status: "Declined"
-    },
-    
-    // --- Received Requests (Sent to the current user) ---
-    {
-        id: "REQ-2026-004",
-        senderName: "HR Department",
-        senderEmail: "hr@dammamvalley.sa",
-        recipientName: "IT Administrator",
-        recipientEmail: "it_dept@dammamvalley.sa",
-        fileName: "Annual_Evaluation.docx",
-        date: "Oct 09, 2026",
-        status: "Pending" 
-    },
-    {
-        id: "REQ-2026-005",
-        senderName: "Executive Office",
-        senderEmail: "ceo@dammamvalley.sa",
-        recipientName: "IT Administrator",
-        recipientEmail: "it_dept@dammamvalley.sa",
-        fileName: "Budget_Approval_Q4.pdf",
-        date: "Oct 01, 2026",
-        status: "Signed" 
-    }
-];
-
-
 /**
  * ==========================================
  * 2. UI NAVIGATION & STATE MANAGEMENT
@@ -153,46 +95,114 @@ function showSection(sectionId) {
  * Filters the data and populates the HTML tables.
  */
 
-function loadDashboardData() {
+/**
+ * ==========================================
+ * 3. DASHBOARD RENDERING (Fetching from SharePoint)
+ * ==========================================
+ */
+
+async function loadDashboardData() {
     const sentBody = document.getElementById('sentRequestsBody');
     const receivedBody = document.getElementById('receivedRequestsBody');
     
-    // Clear existing table rows to prevent duplication
-    sentBody.innerHTML = ''; 
-    receivedBody.innerHTML = ''; 
+    sentBody.innerHTML = '<tr><td colspan="5">جاري التحميل من SharePoint...</td></tr>'; 
+    receivedBody.innerHTML = '<tr><td colspan="5">جاري التحميل من SharePoint...</td></tr>'; 
 
-    // Loop through the data and append rows based on user role (Sender vs. Recipient)
-    mockRequests.forEach((request, index) => {
-        // Determine the CSS class for the status badge
-        let statusClass = 'pending';
-        if (request.status === 'Signed') statusClass = 'signed';
-        if (request.status === 'Declined') statusClass = 'declined';
-        
-        let tr = document.createElement('tr');
-        
-        // Condition 1: Current user is the Sender
-        if (request.senderEmail === currentUserEmail) {
-            tr.innerHTML = `
-                <td>${request.recipientName}</td>
-                <td>${request.fileName}</td>
-                <td>${request.date}</td>
-                <td><span class="status ${statusClass}">${request.status}</span></td>
-                <td><button class="btn-view" onclick="openDynamicModal(${index})">View Details</button></td>
-            `;
-            sentBody.appendChild(tr);
-        } 
-        // Condition 2: Current user is the Recipient
-        else if (request.recipientEmail === currentUserEmail) {
-            tr.innerHTML = `
-                <td>${request.senderName}</td>
-                <td>${request.fileName}</td>
-                <td>${request.date}</td>
-                <td><span class="status ${statusClass}">${request.status}</span></td>
-                <td><button class="btn-view" onclick="openDynamicModal(${index})">View Details</button></td>
-            `;
-            receivedBody.appendChild(tr);
+    try {
+        // التأكد من تسجيل الدخول وجلب رمز المصادقة
+        const account = msalInstance.getAllAccounts()[0];
+        if (!account) {
+            console.error("المستخدم غير مسجل الدخول.");
+            return;
         }
-    });
+
+        const tokenResponse = await msalInstance.acquireTokenSilent({
+            scopes: ["Sites.Read.All"],
+            account: account
+        });
+
+        // إعداد رابط Microsoft Graph API لجلب بيانات القائمة
+        const siteHostname = "dammamvalleyd.sharepoint.com"; 
+        const sitePath = "/sites/E-SignatureSystem";
+        const listId = "4de9b715-9c83-4c02-a4aa-670346ce2254"; // List ID المستخرج
+        
+        // استدعاء واجهة برمجة التطبيقات
+        const graphUrl = `https://graph.microsoft.com/v1.0/sites/${siteHostname}:${sitePath}:/lists/${listId}/items?$expand=fields`;
+        
+        const response = await fetch(graphUrl, {
+            headers: {
+                "Authorization": `Bearer ${tokenResponse.accessToken}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`خطأ في جلب البيانات: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const items = data.value;
+
+        // مسح الجداول قبل تعبئتها
+        sentBody.innerHTML = '';
+        receivedBody.innerHTML = '';
+
+        if(items.length === 0){
+             sentBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">لا توجد طلبات مرسلة</td></tr>';
+             receivedBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">لا توجد طلبات مستلمة</td></tr>';
+             return;
+        }
+
+        // تحديث البيانات في الجداول
+        items.forEach((item, index) => {
+            const fields = item.fields;
+            
+            // قراءة البيانات من أعمدة شيربوينت التي أنشأتها
+            // ملاحظة: تأكد أن الأسماء الداخلية (Internal Names) للأعمدة مطابقة لهذه
+            const request = {
+                id: fields.Title || "N/A", // استخدمنا Title لرقم الطلب
+                senderName: fields.SenderName || "N/A",
+                senderEmail: fields.SenderEmail || "N/A",
+                recipientName: fields.RecipientName || "N/A",
+                recipientEmail: fields.RecipientEmail || "N/A",
+                fileName: fields.FileName || "N/A",
+                date: new Date(item.createdDateTime).toLocaleDateString(),
+                status: fields.RequestStatus || "Pending" // بناءً على عمود Status الخاص بك
+            };
+
+            let statusClass = 'pending';
+            if (request.status === 'Completed' || request.status === 'Signed') statusClass = 'signed';
+            if (request.status === 'Declined') statusClass = 'declined';
+            
+            let tr = document.createElement('tr');
+            
+            // عرض الطلبات التي أرسلها المستخدم
+            if (request.senderEmail === currentUserEmail) {
+                tr.innerHTML = `
+                    <td>${request.recipientName}</td>
+                    <td>${request.fileName}</td>
+                    <td>${request.date}</td>
+                    <td><span class="status ${statusClass}">${request.status}</span></td>
+                    <td><button class="btn-view" onclick="alert('تفاصيل الطلب: ${request.id}')">View Details</button></td>
+                `;
+                sentBody.appendChild(tr);
+            } 
+            // عرض الطلبات التي استلمها المستخدم
+            else if (request.recipientEmail === currentUserEmail) {
+                tr.innerHTML = `
+                    <td>${request.senderName}</td>
+                    <td>${request.fileName}</td>
+                    <td>${request.date}</td>
+                    <td><span class="status ${statusClass}">${request.status}</span></td>
+                    <td><button class="btn-view" onclick="alert('تفاصيل الطلب: ${request.id}')">View Details</button></td>
+                `;
+                receivedBody.appendChild(tr);
+            }
+        });
+        
+    } catch (error) {
+        console.error("فشل في جلب بيانات SharePoint:", error);
+        sentBody.innerHTML = '<tr><td colspan="5" style="color:red; text-align:center;">حدث خطأ أثناء الاتصال بقاعدة البيانات.</td></tr>';
+    }
 }
 
 // Initialize the dashboard data when the DOM is fully loaded
