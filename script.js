@@ -379,27 +379,65 @@ const finalRecipients = document.getElementById('finalRecipients');
 let selectedRecipients = []; // مصفوفة لتخزين المستلمين المختارين
 
 // استدعاء Graph API للبحث عن موظف
+// استدعاء Graph API للبحث الذكي عن موظف
 async function searchUsers(searchTerm) {
-    if(searchTerm.length < 2) {
-        dropdown.style.display = 'none';
-        return;
-    }
     try {
         const account = msalInstance.getAllAccounts()[0];
         const tokenResponse = await msalInstance.acquireTokenSilent({
             scopes: ["User.ReadBasic.All"], account: account
         });
         
-        // جلب الموظفين الذين تبدأ أسماؤهم أو إيميلاتهم بنص البحث
-        const url = `https://graph.microsoft.com/v1.0/users?$filter=startswith(displayName,'${searchTerm}') or startswith(mail,'${searchTerm}')&$top=5`;
-        const response = await fetch(url, { headers: { "Authorization": `Bearer ${tokenResponse.accessToken}` } });
+        // استخدام البحث المتقدم ($search) مع دعم ($count) لجلب أوسع نطاق من النتائج
+        let url = `https://graph.microsoft.com/v1.0/users?$top=20`;
+        
+        // إذا كان هناك نص، نطلب من السيرفر البحث المتقدم
+        if (searchTerm.length > 0) {
+            url += `&$search="displayName:${searchTerm}" OR "mail:${searchTerm}"&$count=true`;
+        }
+
+        const response = await fetch(url, { 
+            headers: { 
+                "Authorization": `Bearer ${tokenResponse.accessToken}`,
+                "ConsistencyLevel": "eventual" // هذا الرأس ضروري جداً لعمل البحث المتقدم في مايكروسوفت
+            } 
+        });
         const data = await response.json();
         
-        renderDropdown(data.value);
+        // فلترة إضافية فائقة الدقة في الجافاسكريبت (Fuzzy Search)
+        // لضمان التقاط الكلمة سواء كانت في بداية الاسم، وسطه، أو نهايته
+        let finalUsers = data.value;
+        if (searchTerm.length > 0) {
+            const term = searchTerm.toLowerCase();
+            finalUsers = finalUsers.filter(u => 
+                (u.displayName && u.displayName.toLowerCase().includes(term)) || 
+                (u.mail && u.mail.toLowerCase().includes(term))
+            );
+        }
+
+        renderDropdown(finalUsers);
     } catch (error) {
         console.error("Search Error:", error);
     }
 }
+
+// عرض الاقتراحات فوراً بمجرد النقر على الحقل (بدون الحاجة للكتابة)
+searchInput.addEventListener('focus', function() {
+    searchUsers(this.value);
+});
+
+// تقليل وقت التأخير (Debounce) ليكون البحث سريعاً جداً أثناء الكتابة
+let searchTimeout;
+searchInput.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => searchUsers(this.value), 200); // 200 ملي ثانية فقط
+});
+
+// إغلاق القائمة المنسدلة عند النقر في أي مكان آخر
+document.addEventListener('click', function(e) {
+    if(e.target !== searchInput && e.target !== dropdown) {
+        dropdown.style.display = 'none';
+    }
+});
 
 // عرض النتائج في القائمة المنسدلة
 function renderDropdown(users) {
@@ -455,12 +493,6 @@ function updateChipsUI() {
     finalRecipients.value = JSON.stringify(selectedRecipients);
 }
 
-// مراقبة الكتابة في مربع البحث (مع تأخير بسيط Debounce لعدم إرهاق السيرفر)
-let searchTimeout;
-searchInput.addEventListener('input', function() {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => searchUsers(this.value), 400);
-});
 
 // إغلاق القائمة المنسدلة عند النقر في أي مكان آخر
 document.addEventListener('click', function(e) {
