@@ -26,8 +26,29 @@ const SubmissionModule = (function() {
             }
         }
 
-        // Render recipients with reordering arrows
         renderSummaryRecipients();
+
+        // --- NEW LOGIC: Lock routing type if only one recipient is selected ---
+        const routeGroup = document.getElementById('routeGroup');
+        const routeIndividual = document.getElementById('routeIndividual');
+        const singleRecipientNotice = document.getElementById('singleRecipientNotice');
+
+        if (recipients.length === 1) {
+            // Lock to Individual
+            if (routeIndividual) routeIndividual.checked = true;
+            if (routeGroup) routeGroup.disabled = true;
+            // Show the warning message
+            if (singleRecipientNotice) singleRecipientNotice.style.display = 'block';
+        } else {
+            // Re-enable and default to Group if multiple recipients
+            if (routeGroup) {
+                routeGroup.disabled = false;
+                routeGroup.checked = true;
+            }
+            // Hide the warning message
+            if (singleRecipientNotice) singleRecipientNotice.style.display = 'none';
+        }
+        // ----------------------------------------------------------------------
 
         // Show modal
         const modal = document.getElementById('sendOptionsModal');
@@ -88,8 +109,16 @@ const SubmissionModule = (function() {
 
     // Final submission to Power Automate webhook
     async function submitFinalRequest(signaturePlacement) {
+        // 1. Format Payload Variables to strictly match Power Automate conditions
         const routingInput = document.querySelector('input[name="modalRouting"]:checked');
-        const routingType = routingInput ? routingInput.value : 'sequential';
+        let rawRouting = routingInput ? routingInput.value : 'sequential';
+        
+        // Map 'parallel' to 'Individual' and 'sequential' to 'Sequential'
+        const routingType = (rawRouting === 'parallel') ? 'Individual' : 'Sequential';
+        
+        // Map 'auto'/'manual' to capitalized 'Auto'/'Manual'
+        const placementType = (signaturePlacement === 'manual') ? 'Manual' : 'Auto';
+
         const documentFiles = FilesModule.getFiles();
         const recipients = RecipientsModule.getSelectedRecipients();
         
@@ -100,7 +129,8 @@ const SubmissionModule = (function() {
         const originalContent = modalContent ? modalContent.innerHTML : '';
         
         if (modalContent) {
-            modalContent.innerHTML = '<div style="text-align:center; padding: 40px;"><h2><i class="fa-solid fa-spinner fa-spin" style="color:var(--dv-teal);"></i> Encrypting & Preparing Files...</h2><p>Please wait while we connect to Adobe Sign servers.</p></div>';
+            // Keep loading screen active until Power Automate responds
+            modalContent.innerHTML = '<div style="text-align:center; padding: 40px;"><h2><i class="fa-solid fa-spinner fa-spin" style="color:var(--dv-teal);"></i> Processing Request...</h2><p>Please wait while we connect to Power Automate and Adobe Sign. Do not close this window.</p></div>';
         }
 
         try {
@@ -118,7 +148,7 @@ const SubmissionModule = (function() {
                 senderEmail: senderEmail,
                 recipients: recipients,
                 routingType: routingType,
-                signaturePlacement: signaturePlacement,
+                signaturePlacement: placementType,
                 files: filesData
             };
 
@@ -129,9 +159,22 @@ const SubmissionModule = (function() {
             });
 
             if (response.ok) {
-                alert("Request sent successfully! Your workflow has been triggered.");
+                // Parse JSON response from Power Automate
+                const responseData = await response.json();
                 
-                // Reset form and states
+                // 2. Handle Manual Links Automation
+                if (placementType === 'Manual' && responseData && responseData.urls) {
+                    alert("Request processed successfully! Opening Adobe Sign windows...");
+                    
+                    // Loop through the URLs array and open each in a new tab
+                    responseData.urls.forEach(url => {
+                        if (url) window.open(url, '_blank');
+                    });
+                } else {
+                    alert("Request sent successfully! Your auto-workflow has been triggered.");
+                }
+                
+                // 3. Reset form and states
                 const form = document.getElementById('signatureForm');
                 if (form) form.reset();
                 RecipientsModule.clearRecipients();
@@ -153,6 +196,7 @@ const SubmissionModule = (function() {
             alert("An error occurred while sending the request. Please check your connection.");
         } finally {
             if (modalContent) {
+                // Restore original modal content for the next request
                 modalContent.innerHTML = originalContent;
             }
         }

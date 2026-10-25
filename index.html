@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dammam Valley E-Signature</title>
     
-    <!-- Stylesheets (تأكد أن المجلد اسمه css وأن الملفات داخله) -->
+    <!-- Stylesheets -->
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/responsive.css">
     
@@ -205,18 +205,32 @@
                 </div>
 
                 <div class="routing-options" style="background: #f8fcfb; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 25px;">
-                    <label style="font-weight: bold; color: var(--dv-dark-blue); display: block; margin-bottom: 10px;">Routing Type:</label>
+                    <label style="font-weight: bold; color: var(--dv-dark-blue); display: block; margin-bottom: 10px;">
+                        Routing Type:
+                        <!-- Info Tooltip for Routing Types -->
+                        <i class="fa-solid fa-circle-info" title="Group: The document is routed sequentially. Each person signs one after the other.&#10;Individual: The document is sent to all recipients simultaneously. Each signs independently." style="color: #888; margin-left: 5px; cursor: help;"></i>
+                    </label>
                     <div style="display: flex; gap: 20px;">
-                        <label style="cursor: pointer;"><input type="radio" name="modalRouting" value="sequential" checked> Sequential</label>
-                        <label style="cursor: pointer;"><input type="radio" name="modalRouting" value="parallel"> Individual</label>
+                        <!-- Changed Sequential to Group -->
+                        <label style="cursor: pointer;" id="groupLabel">
+                            <input type="radio" name="modalRouting" value="sequential" id="routeGroup" checked> Group
+                        </label>
+                        <label style="cursor: pointer;" id="individualLabel">
+                            <input type="radio" name="modalRouting" value="parallel" id="routeIndividual"> Individual
+                        </label>
                     </div>
+                    <!-- Hidden warning for single recipient -->
+                    <p id="singleRecipientNotice" style="display: none; font-size: 12px; color: #dc3545; margin-top: 10px; margin-bottom: 0; font-weight: bold;">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Routing is locked to 'Individual' because only one recipient is selected.
+                    </p>
                 </div>
 
                 <div class="modal-actions" style="display: flex; gap: 15px; justify-content: space-between; border-top: none; padding-top: 0;">
-                    <button class="btn-secondary" style="flex: 1; text-align: center; justify-content: center;" onclick="SubmissionModule.submitFinalRequest('manual')">
+                    <!-- Tooltips added to Placement buttons -->
+                    <button class="btn-secondary" style="flex: 1; text-align: center; justify-content: center;" onclick="SubmissionModule.submitFinalRequest('manual')" title="Manual: Opens Adobe Sign interface so you can drag and drop signature fields exactly where you want them.">
                         <i class="fa-solid fa-pen-nib"></i> Manual Placement
                     </button>
-                    <button class="btn-primary" style="flex: 1; text-align: center; justify-content: center;" onclick="SubmissionModule.submitFinalRequest('auto')">
+                    <button class="btn-primary" style="flex: 1; text-align: center; justify-content: center;" onclick="SubmissionModule.submitFinalRequest('auto')" title="Auto: Adobe Sign will automatically append a standard signature page at the end of the document.">
                         <i class="fa-solid fa-wand-magic-sparkles"></i> Auto Placement
                     </button>
                 </div>
