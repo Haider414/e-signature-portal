@@ -5,18 +5,13 @@ const AuthModule = (function() {
     
     const msalInstance = new msal.PublicClientApplication(Config.msalConfig);
 
-    // 1. تهيئة النظام بهدوء تام دون أي إنذارات
+    // 1. تهيئة النظام بهدوء تام دون توقع توجيهات وهمية
     async function initializeAuth() {
         try {
-            // تنظيف شريط العنوان بصمت إذا كان محملًا برمز قديم
-            if (window.location.hash.includes("code=") || window.location.hash.includes("error=")) {
-                window.history.replaceState(null, null, window.location.pathname);
-            }
-            await msalInstance.handleRedirectPromise();
+            // نتخطى الـ handleRedirectPromise لأننا لا نستخدم التوجيه، ونكتفي بفحص الجلسة مباشرة
+            checkUserSession();
         } catch (error) {
-            // نتجاهل أي تحذير قد ينشأ هنا لأنه خاص بنظام الـ Redirect ونحن نعمل بنظام الـ Popup
-            console.debug("MSAL redirect promise handled silently.");
-        } finally {
+            console.warn("Init Check Warning:", error);
             checkUserSession();
         }
     }
@@ -87,7 +82,7 @@ const AuthModule = (function() {
     // 4. تسجيل الدخول الذكي
     async function authenticateUser() {
         try {
-            sessionStorage.removeItem("msal.interaction.status");
+            sessionStorage.removeItem("msal.interaction.status"); 
             
             await msalInstance.loginPopup({
                 scopes: ["User.Read", "Sites.Read.All", "User.ReadBasic.All"],
@@ -114,7 +109,7 @@ const AuthModule = (function() {
                 account: accounts[0]
             });
         } catch (error) {
-            console.debug("Logout silent completion.");
+            console.warn("Logout popup silent error ignored.");
         } finally {
             sessionStorage.clear();
             checkUserSession();
