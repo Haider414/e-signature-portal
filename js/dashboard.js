@@ -208,17 +208,16 @@ const DashboardModule = (function() {
 
         const btnView = document.getElementById('btnViewDocument');
         btnView.onclick = function() {
-            // 1. جلب مسار الموقع من الإعدادات الموجودة في Config
-            const { siteHostname, sitePath } = Config.sharePointContext;
+            // جلب الهوست (مثال: dammamvalleyd.sharepoint.com)
+            const siteHostname = Config.sharePointContext.siteHostname;
+            // مسار الموقع (مثال: E-SignatureSystem) - نقوم بإزالة أي /sites/ قد تكون مضافة بالخطأ في الإعدادات
+            let sitePath = Config.sharePointContext.sitePath.replace('/sites/', '');
             
-            // 2. اسم مكتبة الأرشيف كما استخرجناه من الرابط
             const archiveLibraryName = "SignedContractsArchive"; 
             
-            // 3. بناء الرابط المباشر للملف (استخدام encodeURIComponent يضمن عدم تعطل الرابط بسبب المسافات أو الرموز العربية)
-            // ولأن المتصفح قد يطلب تنزيل الملف بدلاً من عرضه، نضيف "?web=1" لنجبر شيربوينت على فتح الـ PDF في عارض المتصفح
+            // بناء الرابط النظيف
             const fileUrl = `https://${siteHostname}/sites/${sitePath}/${archiveLibraryName}/${encodeURIComponent(request.fileName)}?web=1`;
             
-            // 4. فتح المستند في علامة تبويب جديدة
             window.open(fileUrl, '_blank');
         };
         

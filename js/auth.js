@@ -5,18 +5,21 @@ const AuthModule = (function() {
     
     const msalInstance = new msal.PublicClientApplication(Config.msalConfig);
 
-    // 1. حل مشكلة الجلسات العالقة (Stuck Sessions)
+    // معالجة أي استجابة قادمة من عملية توجيه سابقة (تسجيل دخول أو خروج) قبل أي شيء آخر
     async function initializeAuth() {
         try {
             await msalInstance.handleRedirectPromise();
             checkUserSession();
         } catch (error) {
             console.error("MSAL Initialization Error:", error);
+            // ننظف الهاش من الرابط إذا كان هناك خطأ عالق
+            if (window.location.hash) {
+                window.history.replaceState(null, null, window.location.pathname);
+            }
             checkUserSession();
         }
     }
 
-    // 2. فحص حالة الجلسة وتحديث الواجهة (الاسم، الإيميل، الأنشطة)
     function checkUserSession() {
         const accounts = msalInstance.getAllAccounts();
         const authBtn = document.getElementById('authActionButton');
@@ -31,12 +34,11 @@ const AuthModule = (function() {
             currentUserEmail = user.username;
             currentUserName = user.name;
 
-            // تحديث عناصر الواجهة بمعلومات المستخدم الحقيقية
             if (userNameEl) userNameEl.textContent = currentUserName;
             if (greeting) greeting.textContent = "Welcome,";
             if (menuUserName) menuUserName.textContent = currentUserName;
             if (menuUserEmail) menuUserEmail.textContent = currentUserEmail;
-            if (profileHeader) profileHeader.style.display = 'block';
+            if (profileHeader) profileHeader.style.display = 'flex'; // استخدام flex كما حددنا في CSS
 
             if (authBtn) {
                 authBtn.className = 'btn-logout';
@@ -52,7 +54,6 @@ const AuthModule = (function() {
                 DashboardModule.loadDashboardData();
             }
         } else {
-            // تصفير الواجهة عند عدم تسجيل الدخول
             if (userNameEl) userNameEl.textContent = "Sign In Required";
             if (greeting) greeting.textContent = "Hello,";
             
@@ -81,22 +82,19 @@ const AuthModule = (function() {
         }
     }
 
-    async function authenticateUser() {
+    // استخدام loginRedirect بدلاً من loginPopup لضمان جلسة نظيفة وعدم حدوث تعارض
+    function authenticateUser() {
         try {
-            const loginResponse = await msalInstance.loginPopup({
+            // تنظيف أي بيانات قديمة في الذاكرة قبل محاولة الدخول الجديدة
+            sessionStorage.clear();
+            
+            msalInstance.loginRedirect({
                 scopes: ["User.Read", "Sites.Read.All", "User.ReadBasic.All"],
-                prompt: "select_account" // إجبار النظام على اختيار الحساب لمنع التداخل
+                prompt: "select_account" 
             });
-            
-            checkUserSession();
-            console.log("Authentication Successful!");
-            
         } catch (error) {
-            console.error("Authentication Error:", error);
-            // تجاهل أخطاء التداخل وإغلاق النافذة من قبل المستخدم
-            if (error.errorCode !== "user_cancelled" && error.errorCode !== "interaction_in_progress") {
-                alert("Authentication failed. Please check Azure AD permissions.");
-            }
+            console.error("Authentication Request Error:", error);
+            alert("Could not start authentication process.");
         }
     }
 
@@ -111,11 +109,10 @@ const AuthModule = (function() {
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length > 0) {
             const logoutRequest = {
-                account: accounts[0], // إخبار MSAL بالحساب الدقيق لتسجيل الخروج منه
+                account: accounts[0],
                 postLogoutRedirectUri: window.location.origin + window.location.pathname
             };
             
-            // تنظيف الذاكرة المخبأة بالكامل قبل إعادة التوجيه
             sessionStorage.clear();
             localStorage.clear();
 
@@ -132,7 +129,6 @@ const AuthModule = (function() {
         }
     });
 
-    // استخدام الدالة الجديدة عند تحميل الصفحة
     window.addEventListener('DOMContentLoaded', () => {
         initializeAuth();
     });
