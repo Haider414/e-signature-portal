@@ -5,12 +5,17 @@ const AuthModule = (function() {
     
     const msalInstance = new msal.PublicClientApplication(Config.msalConfig);
 
-    // 1. تهيئة النظام
+    // 1. تهيئة النظام بهدوء تام دون أي إنذارات
     async function initializeAuth() {
         try {
+            // تنظيف شريط العنوان بصمت إذا كان محملًا برمز قديم
+            if (window.location.hash.includes("code=") || window.location.hash.includes("error=")) {
+                window.history.replaceState(null, null, window.location.pathname);
+            }
             await msalInstance.handleRedirectPromise();
         } catch (error) {
-            console.warn("MSAL Init:", error);
+            // نتجاهل أي تحذير قد ينشأ هنا لأنه خاص بنظام الـ Redirect ونحن نعمل بنظام الـ Popup
+            console.debug("MSAL redirect promise handled silently.");
         } finally {
             checkUserSession();
         }
@@ -79,10 +84,10 @@ const AuthModule = (function() {
         }
     }
 
-    // 4. تسجيل الدخول الذكي (مع تجاهل الإنذارات الكاذبة وإزالة الـ Alert)
+    // 4. تسجيل الدخول الذكي
     async function authenticateUser() {
         try {
-            sessionStorage.removeItem("msal.interaction.status"); // إزالة أي قفل وهمي سابق
+            sessionStorage.removeItem("msal.interaction.status");
             
             await msalInstance.loginPopup({
                 scopes: ["User.Read", "Sites.Read.All", "User.ReadBasic.All"],
@@ -90,21 +95,16 @@ const AuthModule = (function() {
             });
             checkUserSession(); 
         } catch (error) {
-            // التحقق الذكي: هل تم الدخول فعلياً رغم الخطأ؟
             if (msalInstance.getAllAccounts().length > 0) {
-                console.log("Login succeeded silently despite MSAL false alarm.");
                 checkUserSession();
-                return; // نخرج بسلام دون أي خطأ
+                return;
             }
-
-            // إذا فشل فعلاً (مثلاً المستخدم أغلق النافذة بنفسه)، ننظف الذاكرة بهدوء دون إزعاج
-            console.warn("Login process interrupted or false alarm:", error.errorCode);
             sessionStorage.removeItem("msal.interaction.status");
             checkUserSession();
         }
     }
 
-    // 5. تسجيل الخروج السلس (بدون رسائل خطأ)
+    // 5. تسجيل الخروج السلس
     async function logoutUser() {
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length === 0) return;
@@ -114,10 +114,8 @@ const AuthModule = (function() {
                 account: accounts[0]
             });
         } catch (error) {
-            // نتجاهل أي إنذار كاذب يصدر أثناء إغلاق نافذة الخروج
-            console.warn("Logout popup silent error ignored:", error.errorCode);
+            console.debug("Logout silent completion.");
         } finally {
-            // في كل الأحوال، نمسح الذاكرة بالكامل لتنظيف الجلسة وتحديث الواجهة
             sessionStorage.clear();
             checkUserSession();
         }
