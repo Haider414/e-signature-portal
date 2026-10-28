@@ -7,15 +7,20 @@ const DashboardModule = (function() {
     async function loadDashboardData() {
         const sentBody = document.getElementById('sentRequestsBody');
         const receivedBody = document.getElementById('receivedRequestsBody');
+        const recentContainer = document.getElementById('recentActivityContainer');
         
         if (!sentBody || !receivedBody) return;
 
         sentBody.innerHTML = '<tr><td colspan="5">Loading from SharePoint...</td></tr>'; 
         receivedBody.innerHTML = '<tr><td colspan="5">Loading from SharePoint...</td></tr>'; 
+        if(recentContainer) recentContainer.innerHTML = '<p style="font-size: 13px; color: var(--text-muted);">Loading recent activity...</p>';
 
         try {
             const account = AuthModule.msalInstance.getAllAccounts()[0];
-            if (!account) return;
+            if (!account) {
+                 if(recentContainer) recentContainer.innerHTML = '<p style="font-size: 13px; color: var(--text-muted);">Sign in to view recent activity.</p>';
+                 return;
+            }
 
             const tokenResponse = await AuthModule.msalInstance.acquireTokenSilent({
                 scopes: ["Sites.Read.All"],
@@ -42,6 +47,7 @@ const DashboardModule = (function() {
             if (items.length === 0) {
                  sentBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No sent requests found</td></tr>';
                  receivedBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No received requests found</td></tr>';
+                 if(recentContainer) recentContainer.innerHTML = '<p style="font-size: 13px; color: var(--text-muted);">No recent activity found.</p>';
                  return;
             }
 
@@ -50,6 +56,9 @@ const DashboardModule = (function() {
 
             let sentCount = 0;
             let receivedCount = 0;
+            
+            // Array to hold recent activity for rendering later
+            let recentActivityList = [];
 
             items.forEach((item) => {
                 const fields = item.fields;
@@ -70,6 +79,7 @@ const DashboardModule = (function() {
                 let statusClass = 'pending';
                 if (request.status === 'Completed' || request.status === 'Signed') statusClass = 'signed';
                 if (request.status === 'Declined') statusClass = 'declined';
+                if (request.status === 'Cancelled') statusClass = 'cancelled'; // Added Cancelled logic
                 
                 let tr = document.createElement('tr');
                 
@@ -84,6 +94,9 @@ const DashboardModule = (function() {
                         <td><button class="btn-view" onclick="DashboardModule.openDynamicModal(${currentIndex})">View Details</button></td>
                     `;
                     sentBody.appendChild(tr);
+                    
+                    // Add to recent activity if relevant
+                    recentActivityList.push({ type: 'Sent', data: request, index: currentIndex, statusClass: statusClass });
                 } 
                 else if (request.recipientEmail === currentUserEmail) {
                     receivedCount++;
@@ -95,17 +108,67 @@ const DashboardModule = (function() {
                         <td><button class="btn-view" onclick="DashboardModule.openDynamicModal(${currentIndex})">View Details</button></td>
                     `;
                     receivedBody.appendChild(tr);
+                    
+                     // Add to recent activity if relevant
+                    recentActivityList.push({ type: 'Received', data: request, index: currentIndex, statusClass: statusClass });
                 }
             });
 
             if (sentCount === 0) sentBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No sent requests found</td></tr>';
             if (receivedCount === 0) receivedBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No received requests found</td></tr>';
             
+            // Render Recent Activity (Top 3)
+            renderRecentActivity(recentActivityList, recentContainer);
+            
         } catch (error) {
             console.error("Dashboard Error:", error);
             sentBody.innerHTML = '<tr><td colspan="5" style="color:red; text-align:center;">Error connecting to database.</td></tr>';
             receivedBody.innerHTML = '<tr><td colspan="5" style="color:red; text-align:center;">Error connecting to database.</td></tr>';
+            if(recentContainer) recentContainer.innerHTML = '<p style="color:red; font-size: 13px;">Error loading recent activity.</p>';
         }
+    }
+    
+    // Function to render the top 3 recent activities in the New Request page
+    function renderRecentActivity(activityList, container) {
+        if (!container) return;
+        
+        if (activityList.length === 0) {
+            container.innerHTML = '<p style="font-size: 13px; color: var(--text-muted);">No recent activity found.</p>';
+            return;
+        }
+
+        // Take only the first 3 items (they are already sorted by date)
+        const recentItems = activityList.slice(0, 3);
+        
+        let tableHTML = `
+            <table class="requests-table" style="font-size: 13px; margin-bottom: 0;">
+                <thead>
+                    <tr>
+                        <th style="padding: 10px;">Type</th>
+                        <th style="padding: 10px;">Contact</th>
+                        <th style="padding: 10px;">Document</th>
+                        <th style="padding: 10px;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        recentItems.forEach(item => {
+            const contactName = item.type === 'Sent' ? item.data.recipientName : item.data.senderName;
+            const typeIcon = item.type === 'Sent' ? '<i class="fa-solid fa-paper-plane" style="color:var(--dv-teal);"></i> Sent' : '<i class="fa-solid fa-inbox" style="color:var(--dv-dark-blue);"></i> Received';
+            
+            tableHTML += `
+                <tr>
+                    <td style="padding: 10px;">${typeIcon}</td>
+                    <td style="padding: 10px;">${contactName}</td>
+                    <td style="padding: 10px;">${item.data.fileName}</td>
+                    <td style="padding: 10px;"><span class="status ${item.statusClass}" style="font-size: 11px; padding: 3px 8px;">${item.data.status}</span></td>
+                </tr>
+            `;
+        });
+        
+        tableHTML += `</tbody></table>`;
+        container.innerHTML = tableHTML;
     }
 
     // Open details modal for a specific request
@@ -130,6 +193,8 @@ const DashboardModule = (function() {
             statusBadge.className = 'status signed';
         } else if (request.status === 'Declined') {
             statusBadge.className = 'status declined'; 
+        } else if (request.status === 'Cancelled') {
+            statusBadge.className = 'status cancelled'; 
         } else {
             statusBadge.className = 'status pending';
         }
@@ -143,7 +208,18 @@ const DashboardModule = (function() {
 
         const btnView = document.getElementById('btnViewDocument');
         btnView.onclick = function() {
-            alert("Viewing document: " + request.fileName);
+            // 1. جلب مسار الموقع من الإعدادات الموجودة في Config
+            const { siteHostname, sitePath } = Config.sharePointContext;
+            
+            // 2. اسم مكتبة الأرشيف كما استخرجناه من الرابط
+            const archiveLibraryName = "SignedContractsArchive"; 
+            
+            // 3. بناء الرابط المباشر للملف (استخدام encodeURIComponent يضمن عدم تعطل الرابط بسبب المسافات أو الرموز العربية)
+            // ولأن المتصفح قد يطلب تنزيل الملف بدلاً من عرضه، نضيف "?web=1" لنجبر شيربوينت على فتح الـ PDF في عارض المتصفح
+            const fileUrl = `https://${siteHostname}/sites/${sitePath}/${archiveLibraryName}/${encodeURIComponent(request.fileName)}?web=1`;
+            
+            // 4. فتح المستند في علامة تبويب جديدة
+            window.open(fileUrl, '_blank');
         };
         
         document.getElementById('detailsModal').style.display = 'block';

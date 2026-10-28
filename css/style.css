@@ -460,6 +460,12 @@ label {
     color: #b91c1c;
 }
 
+/* Added Cancelled status styling */
+.status.cancelled {
+    background: #fde8e8; /* Light red background */
+    color: #991b1b;     /* Dark red text */
+}
+
 /* ==========================================
    8. MODALS & REORDER LIST
    ========================================== */

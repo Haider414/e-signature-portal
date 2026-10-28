@@ -5,21 +5,37 @@ const AuthModule = (function() {
     
     const msalInstance = new msal.PublicClientApplication(Config.msalConfig);
 
-    // Check initial auth state on load
+    // 1. حل مشكلة الجلسات العالقة (Stuck Sessions)
+    async function initializeAuth() {
+        try {
+            await msalInstance.handleRedirectPromise();
+            checkUserSession();
+        } catch (error) {
+            console.error("MSAL Initialization Error:", error);
+            checkUserSession();
+        }
+    }
+
+    // 2. فحص حالة الجلسة وتحديث الواجهة (الاسم، الإيميل، الأنشطة)
     function checkUserSession() {
         const accounts = msalInstance.getAllAccounts();
         const authBtn = document.getElementById('authActionButton');
         const profileHeader = document.getElementById('profileMenuHeader');
         const greeting = document.getElementById('profileGreeting');
         const userNameEl = document.getElementById('headerUserName');
+        const menuUserName = document.getElementById('menuUserName');
+        const menuUserEmail = document.getElementById('menuUserEmail');
 
         if (accounts.length > 0) {
             const user = accounts[0];
             currentUserEmail = user.username;
             currentUserName = user.name;
 
-            userNameEl.textContent = currentUserName;
-            greeting.textContent = "Welcome,";
+            // تحديث عناصر الواجهة بمعلومات المستخدم الحقيقية
+            if (userNameEl) userNameEl.textContent = currentUserName;
+            if (greeting) greeting.textContent = "Welcome,";
+            if (menuUserName) menuUserName.textContent = currentUserName;
+            if (menuUserEmail) menuUserEmail.textContent = currentUserEmail;
             if (profileHeader) profileHeader.style.display = 'block';
 
             if (authBtn) {
@@ -36,18 +52,26 @@ const AuthModule = (function() {
                 DashboardModule.loadDashboardData();
             }
         } else {
-            userNameEl.textContent = "Sign In Required";
-            greeting.textContent = "Hello,";
+            // تصفير الواجهة عند عدم تسجيل الدخول
+            if (userNameEl) userNameEl.textContent = "Sign In Required";
+            if (greeting) greeting.textContent = "Hello,";
+            
+            if (menuUserName) menuUserName.textContent = '';
+            if (menuUserEmail) menuUserEmail.textContent = '';
             if (profileHeader) profileHeader.style.display = 'none';
 
             if (authBtn) {
                 authBtn.className = 'btn-signin';
                 authBtn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In';
             }
+            
+            const recentContainer = document.getElementById('recentActivityContainer');
+            if(recentContainer) {
+                 recentContainer.innerHTML = '<p style="font-size: 13px; color: var(--text-muted);">Sign in to view recent activity.</p>';
+            }
         }
     }
 
-    // Combined handler for Sign In / Sign Out button
     function handleAuthAction() {
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length > 0) {
@@ -60,7 +84,8 @@ const AuthModule = (function() {
     async function authenticateUser() {
         try {
             const loginResponse = await msalInstance.loginPopup({
-                scopes: ["User.Read", "Sites.Read.All", "User.ReadBasic.All"]
+                scopes: ["User.Read", "Sites.Read.All", "User.ReadBasic.All"],
+                prompt: "select_account" // إجبار النظام على اختيار الحساب لمنع التداخل
             });
             
             checkUserSession();
@@ -68,7 +93,10 @@ const AuthModule = (function() {
             
         } catch (error) {
             console.error("Authentication Error:", error);
-            alert("Authentication failed. Please check Azure AD permissions.");
+            // تجاهل أخطاء التداخل وإغلاق النافذة من قبل المستخدم
+            if (error.errorCode !== "user_cancelled" && error.errorCode !== "interaction_in_progress") {
+                alert("Authentication failed. Please check Azure AD permissions.");
+            }
         }
     }
 
@@ -80,14 +108,19 @@ const AuthModule = (function() {
     }
 
     function logoutUser() {
-        const logoutRequest = {
-            postLogoutRedirectUri: window.location.origin + window.location.pathname
-        };
-        msalInstance.logoutRedirect(logoutRequest).then(() => {
+        const accounts = msalInstance.getAllAccounts();
+        if (accounts.length > 0) {
+            const logoutRequest = {
+                account: accounts[0], // إخبار MSAL بالحساب الدقيق لتسجيل الخروج منه
+                postLogoutRedirectUri: window.location.origin + window.location.pathname
+            };
+            
+            // تنظيف الذاكرة المخبأة بالكامل قبل إعادة التوجيه
+            sessionStorage.clear();
             localStorage.clear();
-        }).catch(error => {
-            console.error("Logout Error:", error);
-        });
+
+            msalInstance.logoutRedirect(logoutRequest);
+        }
     }
 
     document.addEventListener('click', function(event) {
@@ -99,9 +132,9 @@ const AuthModule = (function() {
         }
     });
 
-    // Run check on page load
+    // استخدام الدالة الجديدة عند تحميل الصفحة
     window.addEventListener('DOMContentLoaded', () => {
-        checkUserSession();
+        initializeAuth();
     });
 
     return {
