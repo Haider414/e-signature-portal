@@ -5,13 +5,13 @@ const AuthModule = (function() {
     
     const msalInstance = new msal.PublicClientApplication(Config.msalConfig);
 
-    // 1. تهيئة النظام بهدوء تام بدون فحص توجيه وهمي يسبب رسائل خطأ
+    // 1. تهيئة النظام بهدوء تكتيكي
     async function initializeAuth() {
         try {
-            // تحقق مباشر وسريع من الحسابات المخزنة في الذاكرة دون محاولات توجيه فاشلة
-            checkUserSession();
+            await msalInstance.handleRedirectPromise();
         } catch (error) {
-            console.warn("Init check warning:", error);
+            // نتجاهل أي خطأ وهمي أثناء التهيئة بصمت تام
+        } finally {
             checkUserSession();
         }
     }
@@ -79,24 +79,23 @@ const AuthModule = (function() {
         }
     }
 
-    // 4. تسجيل الدخول الذكي عبر النافذة المنبثقة
+    // 4. تسجيل الدخول الذكي والصامت تجاه الأخطاء الوهمية
     async function authenticateUser() {
         try {
-            sessionStorage.removeItem("msal.interaction.status"); 
+            sessionStorage.removeItem("msal.interaction.status");
             
             await msalInstance.loginPopup({
                 scopes: ["User.Read", "Sites.Read.All", "User.ReadBasic.All"],
                 prompt: "select_account"
             });
-            checkUserSession(); 
         } catch (error) {
-            if (msalInstance.getAllAccounts().length > 0) {
-                checkUserSession();
-                return;
+            // لن نطبع أي شيء في حال كان الإلغاء من المستخدم أو خطأ تداخل وهمي
+            if (error.errorCode && error.errorCode !== "user_cancelled" && error.errorCode !== "interaction_in_progress") {
+                console.warn("MSAL Popup Info:", error.errorCode);
             }
-            console.warn("Login process interrupted:", error.errorCode);
-            sessionStorage.removeItem("msal.interaction.status");
-            checkUserSession();
+        } finally {
+            // في كل الأحوال (سواء ظهر خطأ أم لا)، نتحقق من الجلسة ونحدث الواجهة فوراً
+            checkUserSession(); 
         }
     }
 
@@ -110,7 +109,7 @@ const AuthModule = (function() {
                 account: accounts[0]
             });
         } catch (error) {
-            console.warn("Logout popup silent error ignored:", error.errorCode);
+            // نتجاهل أي تحذير صادر عن إغلاق نافذة الخروج
         } finally {
             sessionStorage.clear();
             checkUserSession();
