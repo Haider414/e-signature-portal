@@ -312,11 +312,11 @@ label {
     color: var(--text-muted); 
 }
 
-/* File Upload & Preview List */
+/* File Upload Box - Reduced Size */
 .file-upload-box {
     border: 2px dashed var(--dv-teal);
     border-radius: 8px;
-    padding: 30px;
+    padding: 15px 20px;
     text-align: center;
     background-color: #f8fcfb;
     position: relative;
@@ -324,9 +324,9 @@ label {
 }
 
 .file-upload-box i {
-    font-size: 30px;
+    font-size: 22px;
     color: var(--dv-teal);
-    margin-bottom: 10px;
+    margin-bottom: 5px;
 }
 
 .uploaded-files-list {
@@ -416,18 +416,27 @@ label {
 }
 
 /* ==========================================
-   7. TABLES & STATUS BADGES
+   7. TABLES & UNIFORM ALIGNED COLUMNS
    ========================================== */
 .requests-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed; /* Ensures strict alignment matching between both tables */
 }
 
 .requests-table th, .requests-table td {
     padding: 15px;
     text-align: left;
     border-bottom: 1px solid var(--border-color);
+    word-break: break-word;
 }
+
+/* Strict Column Width Proportions */
+.requests-table th:nth-child(1), .requests-table td:nth-child(1) { width: 25%; }
+.requests-table th:nth-child(2), .requests-table td:nth-child(2) { width: 35%; }
+.requests-table th:nth-child(3), .requests-table td:nth-child(3) { width: 15%; }
+.requests-table th:nth-child(4), .requests-table td:nth-child(4) { width: 15%; }
+.requests-table th:nth-child(5), .requests-table td:nth-child(5) { width: 10%; text-align: center; }
 
 .status {
     padding: 5px 12px;
@@ -447,8 +456,8 @@ label {
 }
 
 .status.declined {
-    background: #fde8e8;
-    color: #c81e1e;
+    background: #fee2e2;
+    color: #b91c1c;
 }
 
 /* ==========================================
@@ -569,4 +578,26 @@ label {
 .reorder-controls button:disabled {
     color: #d1d5db;
     cursor: not-allowed;
+}
+
+/* Sign In Button Style */
+.btn-signin {
+    width: 100%;
+    background: #e0f2f1;
+    color: var(--dv-teal);
+    border: none;
+    padding: 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.2s;
+}
+
+.btn-signin:hover {
+    background: var(--dv-teal);
+    color: white;
 }

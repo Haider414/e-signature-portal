@@ -47,19 +47,20 @@
             <div class="user-profile" id="userProfileBtn" onclick="AuthModule.toggleProfileMenu(event)">
                 <i class="fa-solid fa-circle-user avatar-icon"></i>
                 <div class="user-info">
-                    <span class="greeting">Welcome,</span>
-                    <span class="user-name" id="headerUserName">Loading...</span>
+                    <span class="greeting" id="profileGreeting">Welcome,</span>
+                    <span class="user-name" id="headerUserName">Not Signed In</span>
                 </div>
                 <i class="fa-solid fa-chevron-down" style="font-size: 12px; color: #888; margin-left: 8px;"></i>
                 
                 <div class="profile-menu" id="profileMenu" style="display: none;">
-                    <div class="profile-menu-header">
+                    <div class="profile-menu-header" id="profileMenuHeader" style="display: none;">
                         <span id="menuUserName" class="menu-name"></span>
                         <span id="menuUserEmail" class="menu-email"></span>
                     </div>
                     <div class="profile-menu-body">
-                        <button onclick="AuthModule.logoutUser()" class="btn-logout">
-                            <i class="fa-solid fa-arrow-right-from-bracket"></i> Sign Out
+                        <!-- Dynamic Auth Button (Sign In / Sign Out) -->
+                        <button id="authActionButton" onclick="AuthModule.handleAuthAction()" class="btn-signin">
+                            <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In
                         </button>
                     </div>
                 </div>
@@ -82,7 +83,7 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="section-label">Upload Document(s) (PDF, Word)</label>
+                    <label class="section-label">Upload Document(s) (PDF, Word) <span style="font-size:11px; color:#888;">(Max 10MB per file)</span></label>
                     <div class="file-upload-box" onclick="document.getElementById('document').click()">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
                         <input type="file" id="document" accept=".pdf, .doc, .docx" multiple style="display:none;">
@@ -98,6 +99,13 @@
                     Continue <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </form>
+
+            <div style="margin-top: 40px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+                <h3 style="font-size: 15px; color: var(--dv-dark-blue); margin-bottom: 12px;">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Recent Activity Overview
+                </h3>
+                <p style="font-size: 13px; color: var(--text-muted);">You can check your full request tracking and statuses anytime under the <a href="javascript:void(0)" onclick="NavigationModule.showSection('dashboard')" style="color: var(--dv-teal); font-weight: bold; text-decoration: none;">Dashboard</a> tab.</p>
+            </div>
         </section>
 
         <!-- SECTION 2: Dashboard -->
@@ -180,7 +188,7 @@
         </div>
     </div>
 
-    <!-- Sending Options Modal -->
+    <!-- Sending Options Modal (No Exclamation Marks, Clean Text Descriptions) -->
     <div id="sendOptionsModal" class="modal">
         <div class="modal-content" style="max-width: 600px;">
             <span class="close" onclick="SubmissionModule.closeOptionsModal()">&times;</span>
@@ -204,41 +212,49 @@
                     <ul id="summaryRecipientsList" class="reorder-list"></ul>
                 </div>
 
-                <div class="routing-options" style="background: #f8fcfb; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 25px;">
-                    <label style="font-weight: bold; color: var(--dv-dark-blue); display: block; margin-bottom: 10px;">
+                <!-- Routing Options Section (No Exclamation Marks) -->
+                <div class="routing-options" style="background: #f8fcfb; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 20px;">
+                    <label style="font-weight: bold; color: var(--dv-dark-blue); display: block; margin-bottom: 5px;">
                         Routing Type:
-                        <!-- Info Tooltip for Routing Types -->
-                        <i class="fa-solid fa-circle-info" title="Group: The document is routed sequentially. Each person signs one after the other.&#10;Individual: The document is sent to all recipients simultaneously. Each signs independently." style="color: #888; margin-left: 5px; cursor: help;"></i>
                     </label>
-                    <div style="display: flex; gap: 20px;">
-                        <!-- Changed Sequential to Group -->
-                        <label style="cursor: pointer;" id="groupLabel">
-                            <input type="radio" name="modalRouting" value="sequential" id="routeGroup" checked> Group
+                    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">Choose how recipients will receive and sign the document workflow.</p>
+                    
+                    <div style="display: flex; gap: 20px; align-items: center;">
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;" id="groupLabel">
+                            <input type="radio" name="modalRouting" value="sequential" id="routeGroup" checked> Group <span style="font-size: 11px; color: #777;">(Sequential signing order)</span>
                         </label>
-                        <label style="cursor: pointer;" id="individualLabel">
-                            <input type="radio" name="modalRouting" value="parallel" id="routeIndividual"> Individual
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;" id="individualLabel">
+                            <input type="radio" name="modalRouting" value="parallel" id="routeIndividual"> Individual <span style="font-size: 11px; color: #777;">(Simultaneous signing)</span>
                         </label>
                     </div>
-                    <!-- Hidden warning for single recipient -->
-                    <p id="singleRecipientNotice" style="display: none; font-size: 12px; color: #dc3545; margin-top: 10px; margin-bottom: 0; font-weight: bold;">
-                        <i class="fa-solid fa-triangle-exclamation"></i> Routing is locked to 'Individual' because only one recipient is selected.
+                    <!-- Amber Warning Notice for single recipient -->
+                    <p id="singleRecipientNotice" style="display: none; font-size: 12px; color: #b45309; background-color: #fef3c7; border: 1px solid #f59e0b; padding: 8px 12px; border-radius: 6px; margin-top: 10px; margin-bottom: 0; font-weight: 500;">
+                        Routing is automatically locked to 'Individual' because only one recipient is selected.
                     </p>
                 </div>
 
-                <div class="modal-actions" style="display: flex; gap: 15px; justify-content: space-between; border-top: none; padding-top: 0;">
-                    <!-- Tooltips added to Placement buttons -->
-                    <button class="btn-secondary" style="flex: 1; text-align: center; justify-content: center;" onclick="SubmissionModule.submitFinalRequest('manual')" title="Manual: Opens Adobe Sign interface so you can drag and drop signature fields exactly where you want them.">
-                        <i class="fa-solid fa-pen-nib"></i> Manual Placement
-                    </button>
-                    <button class="btn-primary" style="flex: 1; text-align: center; justify-content: center;" onclick="SubmissionModule.submitFinalRequest('auto')" title="Auto: Adobe Sign will automatically append a standard signature page at the end of the document.">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i> Auto Placement
-                    </button>
+                <!-- Signature Placement Section -->
+                <div class="placement-options" style="background: #f8fcfb; padding: 15px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 25px;">
+                    <label style="font-weight: bold; color: var(--dv-dark-blue); display: block; margin-bottom: 5px;">
+                        Signature Placement:
+                    </label>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Select how signature fields will be positioned on the document.</p>
+                    
+                    <div class="modal-actions" style="display: flex; gap: 15px; justify-content: space-between; border-top: none; padding-top: 0; margin-top: 0;">
+                        <button class="btn-secondary" style="flex: 1; text-align: center; justify-content: center;" onclick="SubmissionModule.submitFinalRequest('manual')" title="Manual Placement">
+                            <i class="fa-solid fa-pen-nib"></i> Manual Placement
+                        </button>
+                        <button class="btn-primary" style="flex: 1; text-align: center; justify-content: center;" onclick="SubmissionModule.submitFinalRequest('auto')" title="Auto Placement">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> Auto Placement
+                        </button>
+                    </div>
                 </div>
+
             </div>
         </div>
     </div>
 
-    <!-- Modular JavaScript Files (Loaded in specific order) -->
+    <!-- JavaScript Files -->
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/navigation.js"></script>

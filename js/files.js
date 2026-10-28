@@ -6,14 +6,26 @@ const FilesModule = (function() {
     const fileInput = document.getElementById('document');
     const fileNameDisplay = document.getElementById('fileNameDisplay');
     const filesContainer = document.getElementById('uploadedFilesContainer');
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB limit
 
     function init() {
         if (!fileInput) return;
 
         fileInput.addEventListener('change', function() {
+            let invalidFiles = [];
+            
             for (let i = 0; i < this.files.length; i++) {
-                dt.items.add(this.files[i]);
+                if (this.files[i].size > MAX_FILE_SIZE) {
+                    invalidFiles.push(this.files[i].name);
+                } else {
+                    dt.items.add(this.files[i]);
+                }
             }
+
+            if (invalidFiles.length > 0) {
+                alert(`The following file(s) exceed the 10MB limit and were not added:\n${invalidFiles.join('\n')}`);
+            }
+
             this.files = dt.files;
             renderFilesList();
         });
@@ -39,7 +51,7 @@ const FilesModule = (function() {
                 fileItem.innerHTML = `
                     <div class="file-item-info">
                         <i class="fa-solid ${iconClass}"></i> 
-                        <span>${file.name} <small style="color:#888;">(${(file.size / 1024).toFixed(1)} KB)</small></span>
+                        <span>${file.name} <small style="color:#888;">(${(file.size / (1024 * 1024)).toFixed(2)} MB)</small></span>
                     </div>
                     <i class="fa-solid fa-xmark file-item-remove" onclick="FilesModule.removeFile(${i}, event)" title="Remove File"></i>
                 `;

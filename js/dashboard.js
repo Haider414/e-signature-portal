@@ -37,13 +37,19 @@ const DashboardModule = (function() {
             sentBody.innerHTML = '';
             receivedBody.innerHTML = '';
             
-            realRequests = []; // Clear array before repopulating
+            realRequests = []; 
 
             if (items.length === 0) {
                  sentBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No sent requests found</td></tr>';
                  receivedBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No received requests found</td></tr>';
                  return;
             }
+
+            // --- SORT ITEMS BY DATE (Newest to Oldest) ---
+            items.sort((a, b) => new Date(b.createdDateTime) - new Date(a.createdDateTime));
+
+            let sentCount = 0;
+            let receivedCount = 0;
 
             items.forEach((item) => {
                 const fields = item.fields;
@@ -67,7 +73,9 @@ const DashboardModule = (function() {
                 
                 let tr = document.createElement('tr');
                 
+                // Uniform column layout: [Target Name / Sender] [Document] [Date] [Status] [Details]
                 if (request.senderEmail === currentUserEmail) {
+                    sentCount++;
                     tr.innerHTML = `
                         <td>${request.recipientName}</td>
                         <td>${request.fileName}</td>
@@ -78,6 +86,7 @@ const DashboardModule = (function() {
                     sentBody.appendChild(tr);
                 } 
                 else if (request.recipientEmail === currentUserEmail) {
+                    receivedCount++;
                     tr.innerHTML = `
                         <td>${request.senderName}</td>
                         <td>${request.fileName}</td>
@@ -88,6 +97,9 @@ const DashboardModule = (function() {
                     receivedBody.appendChild(tr);
                 }
             });
+
+            if (sentCount === 0) sentBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No sent requests found</td></tr>';
+            if (receivedCount === 0) receivedBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">No received requests found</td></tr>';
             
         } catch (error) {
             console.error("Dashboard Error:", error);
@@ -137,13 +149,11 @@ const DashboardModule = (function() {
         document.getElementById('detailsModal').style.display = 'block';
     }
 
-    // Close details modal
     function closeModal() {
         const modal = document.getElementById('detailsModal');
         if (modal) modal.style.display = 'none';
     }
 
-    // Close modal when clicking outside of content
     window.addEventListener('click', function(event) {
         const modal = document.getElementById('detailsModal');
         if (event.target === modal) {
