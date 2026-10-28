@@ -10,8 +10,8 @@ const Config = {
             redirectUri: "https://haider414.github.io/e-signature-portal/" 
         },
         cache: {
-            cacheLocation: "localStorage", // حفظ الجلسة حتى بعد إغلاق المتصفح
-            storeAuthStateInCookie: true   // منع تعارض الجلسات وتسهيل التبديل والخروج النظيف
+            cacheLocation: "sessionStorage", // يضمن مسح الجلسة بمجرد إغلاق الصفحة
+            storeAuthStateInCookie: false    // نلغيها لمنع تعارض الجلسات القديمة
         }
     },
     graphApiUrl: "https://graph.microsoft.com/v1.0",

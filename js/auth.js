@@ -5,26 +5,25 @@ const AuthModule = (function() {
     
     const msalInstance = new msal.PublicClientApplication(Config.msalConfig);
 
-    // 1. تهيئة النظام وتنظيف أي بقايا من جلسات مغلقة بشكل مفاجئ
+    // 1. تهيئة النظام ومحاولة الدخول الصامت (تجهيزاً لبيئة Teams/PowerPages)
     async function initializeAuth() {
-        // تنظيف شريط الرابط من أي أكواد عالقة من مايكروسوفت قبل بدء النظام
-        if (window.location.hash.includes("code=") || window.location.hash.includes("state=") || window.location.hash.includes("error=")) {
-            window.history.replaceState(null, null, window.location.pathname);
-        }
-
         try {
             await msalInstance.handleRedirectPromise();
+            
+            const accounts = msalInstance.getAllAccounts();
+            if (accounts.length > 0) {
+                // محاولة تجديد الجلسة بصمت في الخلفية إذا كانت صالحة
+                await msalInstance.ssoSilent({ account: accounts[0] });
+            }
         } catch (error) {
-            console.warn("MSAL Init Warning:", error);
-            // إذا كانت الذاكرة تالفة تماماً، نقوم بمسحها
-            sessionStorage.clear();
-            localStorage.clear();
+            console.warn("Silent SSO failed or no active session.");
+            sessionStorage.clear(); // تنظيف استباقي في حال فشل الجلسة
         } finally {
             checkUserSession();
         }
     }
 
-    // 2. التحقق من حالة الجلسة وتحديث الواجهة
+    // 2. تحديث الواجهة بناءً على حالة الجلسة
     function checkUserSession() {
         const accounts = msalInstance.getAllAccounts();
         const authBtn = document.getElementById('authActionButton');
@@ -43,7 +42,6 @@ const AuthModule = (function() {
             if (greeting) greeting.textContent = "Welcome,";
             if (menuUserName) menuUserName.textContent = currentUserName;
             if (menuUserEmail) menuUserEmail.textContent = currentUserEmail;
-            
             if (profileHeader) profileHeader.style.display = 'flex'; 
 
             if (authBtn) {
@@ -62,7 +60,6 @@ const AuthModule = (function() {
         } else {
             if (userNameEl) userNameEl.textContent = "Sign In Required";
             if (greeting) greeting.textContent = "Hello,";
-            
             if (menuUserName) menuUserName.textContent = '';
             if (menuUserEmail) menuUserEmail.textContent = '';
             if (profileHeader) profileHeader.style.display = 'none';
@@ -79,7 +76,7 @@ const AuthModule = (function() {
         }
     }
 
-    // 3. معالج النقر على الأزرار
+    // 3. معالج الأزرار
     function handleAuthAction() {
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length > 0) {
@@ -89,59 +86,38 @@ const AuthModule = (function() {
         }
     }
 
-    // 4. الدخول الصافي عبر النافذة المنبثقة (مع كسر الأقفال الوهمية)
+    // 4. تسجيل الدخول النظيف عبر Popup
     async function authenticateUser() {
         try {
-            // كسر القفل الوهمي (interaction_in_progress) الناتج عن إغلاق الصفحة فجأة سابقاً
-            sessionStorage.clear();
-
+            sessionStorage.clear(); // مسح الذاكرة لضمان عدم وجود أقفال وهمية
             await msalInstance.loginPopup({
                 scopes: ["User.Read", "Sites.Read.All", "User.ReadBasic.All"],
-                prompt: "select_account" 
+                prompt: "select_account" // يتيح التبديل بين الحسابات بسهولة
             });
             checkUserSession(); 
         } catch (error) {
             console.error("Popup Login Error:", error);
-            
-            // فلتر ذكي لتجاهل الأخطاء الناتجة عن تعليق المتصفح أو إغلاق المستخدم للنافذة
-            const ignoredErrors = [
-                "user_cancelled", 
-                "interaction_in_progress", 
-                "popup_window_error",
-                "empty_window_error",
-                "invalid_state",
-                "hash_empty_error"
-            ];
-            
-            if (error.errorCode && !ignoredErrors.includes(error.errorCode)) {
-                // في حال وجود خطأ حقيقي، نمسح الذاكرة لكي تنجح المحاولة التالية
-                sessionStorage.clear();
-                localStorage.clear();
-                alert("Authentication failed. Please try again.");
+            const ignoredErrors = ["user_cancelled", "interaction_in_progress", "popup_window_error"];
+            // إظهار الخطأ فقط في حال فشل حقيقي وتجاهل الإلغاء اليدوي أو أخطاء التداخل
+            if (!ignoredErrors.includes(error.errorCode)) {
+                alert("Authentication failed. Please check Azure AD permissions.");
             }
         }
     }
 
-    // 5. الخروج النظيف
+    // 5. تسجيل الخروج الجذري
     async function logoutUser() {
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length === 0) return;
 
         try {
-            await msalInstance.logoutPopup({
-                account: accounts[0]
-            });
-            sessionStorage.clear();
-            localStorage.clear();
-            checkUserSession();
+            await msalInstance.logoutPopup({ account: accounts[0] });
         } catch (error) {
-            console.warn("Popup blocked or failed, using redirect fallback...", error);
+            console.warn("Logout popup failed, cleaning up manually.", error);
+        } finally {
+            // تدمير الجلسة محلياً بشكل قاطع لضمان نسيان الحساب حتى لو فشلت النافذة
             sessionStorage.clear();
-            localStorage.clear();
-            msalInstance.logoutRedirect({
-                account: accounts[0],
-                postLogoutRedirectUri: window.location.origin + window.location.pathname
-            });
+            checkUserSession();
         }
     }
 
@@ -156,7 +132,6 @@ const AuthModule = (function() {
     document.addEventListener('click', function(event) {
         const profileBtn = document.getElementById('userProfileBtn');
         const profileMenu = document.getElementById('profileMenu');
-        
         if (profileMenu && profileBtn && !profileBtn.contains(event.target)) {
             profileMenu.style.display = 'none';
         }
