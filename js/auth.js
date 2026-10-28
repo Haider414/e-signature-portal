@@ -5,21 +5,18 @@ const AuthModule = (function() {
     
     const msalInstance = new msal.PublicClientApplication(Config.msalConfig);
 
-    // معالجة أي استجابة قادمة من عملية توجيه سابقة (تسجيل دخول أو خروج) قبل أي شيء آخر
+    // 1. تهيئة النظام وتنظيف أي بقايا من عمليات سابقة في الذاكرة
     async function initializeAuth() {
         try {
             await msalInstance.handleRedirectPromise();
-            checkUserSession();
         } catch (error) {
-            console.error("MSAL Initialization Error:", error);
-            // ننظف الهاش من الرابط إذا كان هناك خطأ عالق
-            if (window.location.hash) {
-                window.history.replaceState(null, null, window.location.pathname);
-            }
-            checkUserSession();
+            console.warn("MSAL Background Cleanup:", error);
+        } finally {
+            checkUserSession(); // تحديث الواجهة دائماً سواء نجح التنظيف أم لا
         }
     }
 
+    // 2. التحقق من حالة الجلسة وتحديث الواجهة (الاسم، الايميل، الازرار)
     function checkUserSession() {
         const accounts = msalInstance.getAllAccounts();
         const authBtn = document.getElementById('authActionButton');
@@ -38,7 +35,7 @@ const AuthModule = (function() {
             if (greeting) greeting.textContent = "Welcome,";
             if (menuUserName) menuUserName.textContent = currentUserName;
             if (menuUserEmail) menuUserEmail.textContent = currentUserEmail;
-            if (profileHeader) profileHeader.style.display = 'flex'; // استخدام flex كما حددنا في CSS
+            if (profileHeader) profileHeader.style.display = 'flex'; 
 
             if (authBtn) {
                 authBtn.className = 'btn-logout';
@@ -73,6 +70,7 @@ const AuthModule = (function() {
         }
     }
 
+    // 3. معالج النقر على زر (تسجيل الدخول / الخروج)
     function handleAuthAction() {
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length > 0) {
@@ -82,41 +80,68 @@ const AuthModule = (function() {
         }
     }
 
-    // استخدام loginRedirect بدلاً من loginPopup لضمان جلسة نظيفة وعدم حدوث تعارض
-    function authenticateUser() {
+    // 4. تسجيل الدخول عبر النافذة المنبثقة (Popup) بدون حلقات تكرار لا نهائية
+    async function authenticateUser() {
         try {
-            // تنظيف أي بيانات قديمة في الذاكرة قبل محاولة الدخول الجديدة
+            // تنظيف الذاكرة المؤقتة لمنع خطأ interaction_in_progress قبل فتح النافذة
             sessionStorage.clear();
             
-            msalInstance.loginRedirect({
+            await msalInstance.loginPopup({
                 scopes: ["User.Read", "Sites.Read.All", "User.ReadBasic.All"],
-                prompt: "select_account" 
+                prompt: "select_account" // يتيح لك اختيار الحساب دائماً
             });
+            
+            // تحديث الواجهة فوراً بعد نجاح الدخول
+            checkUserSession();
+            
         } catch (error) {
-            console.error("Authentication Request Error:", error);
-            alert("Could not start authentication process.");
+            console.error("Popup Login Action:", error.errorCode);
+            
+            // الفلتر الذكي: نتجاهل جميع الأخطاء الوهمية والمزعجة بصمت تام
+            const ignoredErrors = [
+                "user_cancelled", 
+                "interaction_in_progress", 
+                "popup_window_error", 
+                "empty_window_error",
+                "monitor_window_timeout"
+            ];
+            
+            if (!ignoredErrors.includes(error.errorCode)) {
+                console.warn("Authentication interrupted:", error);
+            }
         }
     }
 
+    // 5. تسجيل الخروج السليم
+    function logoutUser() {
+        try {
+            const accounts = msalInstance.getAllAccounts();
+            if (accounts.length > 0) {
+                const logoutRequest = {
+                    account: accounts[0],
+                    postLogoutRedirectUri: window.location.origin + window.location.pathname
+                };
+                
+                // تنظيف الذاكرة بالكامل لضمان نسيان الحساب
+                sessionStorage.clear();
+                localStorage.clear();
+
+                msalInstance.logoutRedirect(logoutRequest);
+            }
+        } catch (error) {
+            console.error("Logout execution error:", error);
+            // في حال حدوث خطأ، نقوم بتحديث الواجهة للخروج محلياً على الأقل
+            sessionStorage.clear();
+            localStorage.clear();
+            checkUserSession();
+        }
+    }
+
+    // 6. التحكم بالقائمة المنسدلة
     function toggleProfileMenu(event) {
         const menu = document.getElementById('profileMenu');
         if (menu) {
             menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-        }
-    }
-
-    function logoutUser() {
-        const accounts = msalInstance.getAllAccounts();
-        if (accounts.length > 0) {
-            const logoutRequest = {
-                account: accounts[0],
-                postLogoutRedirectUri: window.location.origin + window.location.pathname
-            };
-            
-            sessionStorage.clear();
-            localStorage.clear();
-
-            msalInstance.logoutRedirect(logoutRequest);
         }
     }
 
@@ -129,6 +154,7 @@ const AuthModule = (function() {
         }
     });
 
+    // تشغيل التهيئة عند تحميل الصفحة
     window.addEventListener('DOMContentLoaded', () => {
         initializeAuth();
     });
