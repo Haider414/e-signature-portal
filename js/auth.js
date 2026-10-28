@@ -79,34 +79,45 @@ const AuthModule = (function() {
         }
     }
 
-    // 4. تسجيل الدخول النظيف (بدون مسح يدوي للذاكرة لتجنب كسر المكتبة)
+    // 4. تسجيل الدخول الذكي (مع كاسر الأقفال الوهمية)
     async function authenticateUser() {
         try {
+            // التنظيف الاستباقي: إزالة قفل MSAL الوهمي الذي يمنع الدخول المباشر بعد الخروج
+            sessionStorage.removeItem("msal.interaction.status");
+
             await msalInstance.loginPopup({
                 scopes: ["User.Read", "Sites.Read.All", "User.ReadBasic.All"],
-                prompt: "select_account" // لضمان حرية تبديل الحسابات
+                prompt: "select_account"
             });
             checkUserSession(); 
         } catch (error) {
-            if (error.errorCode !== "user_cancelled") {
-                console.warn("Login failed or was closed:", error.errorCode);
+            // معالجة الأخطاء الذكية
+            if (error.errorCode === "interaction_in_progress") {
+                // إذا أصر النظام على وجود قفل، نمسح الذاكرة بالكامل لإنقاذه
+                sessionStorage.clear();
+            } else if (error.errorCode !== "user_cancelled") {
+                alert("Authentication failed. Please try again.");
             }
+            console.warn("Login Action:", error);
         }
     }
 
-    // 5. تسجيل الخروج السليم (المكتبة تنظف ذاكرتها بنفسها بعد إغلاق النافذة المنبثقة)
+    // 5. تسجيل الخروج الجذري
     async function logoutUser() {
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length === 0) return;
 
         try {
-            await msalInstance.logoutPopup({ 
-                account: accounts[0] 
+            await msalInstance.logoutPopup({
+                account: accounts[0]
             });
-            checkUserSession(); // تحديث الواجهة مباشرة بعد نجاح الخروج
         } catch (error) {
-            console.warn("Logout popup blocked or failed:", error);
-            checkUserSession(); // تحديث الواجهة كإجراء احتياطي
+            console.warn("Logout popup:", error);
+        } finally {
+            // السر هنا: تنظيف الذاكرة المؤقتة *بعد* انتهاء عملية الخروج بالكامل
+            // هذا يضمن أن النظام جاهز 100% لاستقبال تسجيل دخول جديد وفوري
+            sessionStorage.clear();
+            checkUserSession();
         }
     }
 
