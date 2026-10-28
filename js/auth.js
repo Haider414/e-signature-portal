@@ -3,21 +3,28 @@
    ========================================== */
 const AuthModule = (function() {
     
-    // تهيئة مكتبة مايكروسوفت بناءً على الإعدادات الجديدة في config.js (والتي تستخدم localStorage)
     const msalInstance = new msal.PublicClientApplication(Config.msalConfig);
 
-    // 1. تهيئة النظام ومعالجة أي توجيهات سابقة
+    // 1. تهيئة النظام وتنظيف أي بقايا من جلسات مغلقة بشكل مفاجئ
     async function initializeAuth() {
+        // تنظيف شريط الرابط من أي أكواد عالقة من مايكروسوفت قبل بدء النظام
+        if (window.location.hash.includes("code=") || window.location.hash.includes("state=") || window.location.hash.includes("error=")) {
+            window.history.replaceState(null, null, window.location.pathname);
+        }
+
         try {
             await msalInstance.handleRedirectPromise();
         } catch (error) {
             console.warn("MSAL Init Warning:", error);
+            // إذا كانت الذاكرة تالفة تماماً، نقوم بمسحها
+            sessionStorage.clear();
+            localStorage.clear();
         } finally {
             checkUserSession();
         }
     }
 
-    // 2. التحقق من الجلسة (تعمل بذكاء مع localStorage للاحتفاظ بالدخول بعد إغلاق الصفحة)
+    // 2. التحقق من حالة الجلسة وتحديث الواجهة
     function checkUserSession() {
         const accounts = msalInstance.getAllAccounts();
         const authBtn = document.getElementById('authActionButton');
@@ -28,7 +35,6 @@ const AuthModule = (function() {
         const menuUserEmail = document.getElementById('menuUserEmail');
 
         if (accounts.length > 0) {
-            // المستخدم مسجل دخوله (سواء للتو، أو من جلسة سابقة لم يخرج منها)
             const user = accounts[0];
             currentUserEmail = user.username;
             currentUserName = user.name;
@@ -37,6 +43,7 @@ const AuthModule = (function() {
             if (greeting) greeting.textContent = "Welcome,";
             if (menuUserName) menuUserName.textContent = currentUserName;
             if (menuUserEmail) menuUserEmail.textContent = currentUserEmail;
+            
             if (profileHeader) profileHeader.style.display = 'flex'; 
 
             if (authBtn) {
@@ -49,12 +56,10 @@ const AuthModule = (function() {
             if (senderNameInput) senderNameInput.value = currentUserName;
             if (senderEmailInput) senderEmailInput.value = currentUserEmail;
 
-            // تحميل بيانات الداشبورد لأن المستخدم مصرح له
             if (typeof DashboardModule !== 'undefined') {
                 DashboardModule.loadDashboardData();
             }
         } else {
-            // المستخدم غير مسجل دخوله (أو قام بتسجيل الخروج مسبقاً)
             if (userNameEl) userNameEl.textContent = "Sign In Required";
             if (greeting) greeting.textContent = "Hello,";
             
@@ -74,7 +79,7 @@ const AuthModule = (function() {
         }
     }
 
-    // 3. معالج النقر على زر (تسجيل الدخول / الخروج)
+    // 3. معالج النقر على الأزرار
     function handleAuthAction() {
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length > 0) {
@@ -84,40 +89,55 @@ const AuthModule = (function() {
         }
     }
 
-    // 4. الدخول الصافي والذكي عبر النافذة المنبثقة
+    // 4. الدخول الصافي عبر النافذة المنبثقة (مع كسر الأقفال الوهمية)
     async function authenticateUser() {
         try {
+            // كسر القفل الوهمي (interaction_in_progress) الناتج عن إغلاق الصفحة فجأة سابقاً
+            sessionStorage.clear();
+
             await msalInstance.loginPopup({
                 scopes: ["User.Read", "Sites.Read.All", "User.ReadBasic.All"],
-                prompt: "select_account" // السر هنا: إجبار النظام على سؤالك أي حساب تريد استخدامه لتسهيل تبديل الحسابات
+                prompt: "select_account" 
             });
             checkUserSession(); 
         } catch (error) {
             console.error("Popup Login Error:", error);
-            const ignoredErrors = ["user_cancelled", "interaction_in_progress", "popup_window_error"];
-            // تجاهل الأخطاء الناتجة عن إغلاق المستخدم للنافذة أو بطء المتصفح بصمت
-            if (!ignoredErrors.includes(error.errorCode)) {
-                alert("Authentication failed. Please check your connection or permissions.");
+            
+            // فلتر ذكي لتجاهل الأخطاء الناتجة عن تعليق المتصفح أو إغلاق المستخدم للنافذة
+            const ignoredErrors = [
+                "user_cancelled", 
+                "interaction_in_progress", 
+                "popup_window_error",
+                "empty_window_error",
+                "invalid_state",
+                "hash_empty_error"
+            ];
+            
+            if (error.errorCode && !ignoredErrors.includes(error.errorCode)) {
+                // في حال وجود خطأ حقيقي، نمسح الذاكرة لكي تنجح المحاولة التالية
+                sessionStorage.clear();
+                localStorage.clear();
+                alert("Authentication failed. Please try again.");
             }
         }
     }
 
-    // 5. الخروج النظيف ذو الخطة البديلة (Fallback)
+    // 5. الخروج النظيف
     async function logoutUser() {
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length === 0) return;
 
         try {
-            // المحاولة الأولى: خروج سلس وسريع عبر النافذة المنبثقة
             await msalInstance.logoutPopup({
                 account: accounts[0]
             });
-            // مسح أي بقايا في الذاكرة المؤقتة تأكيداً لنظافة الجلسة
             sessionStorage.clear();
+            localStorage.clear();
             checkUserSession();
         } catch (error) {
             console.warn("Popup blocked or failed, using redirect fallback...", error);
-            // المحاولة الثانية (ذكاء الكود): إذا حظر المتصفح النافذة، نستخدم التوجيه الإجباري
+            sessionStorage.clear();
+            localStorage.clear();
             msalInstance.logoutRedirect({
                 account: accounts[0],
                 postLogoutRedirectUri: window.location.origin + window.location.pathname
@@ -142,7 +162,6 @@ const AuthModule = (function() {
         }
     });
 
-    // تشغيل النظام فور تحميل الصفحة
     window.addEventListener('DOMContentLoaded', () => {
         initializeAuth();
     });
