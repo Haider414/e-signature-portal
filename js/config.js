@@ -10,8 +10,9 @@ const Config = {
             redirectUri: "https://haider414.github.io/e-signature-portal/" 
         },
         cache: {
-            cacheLocation: "sessionStorage", // يضمن مسح الجلسة بمجرد إغلاق الصفحة
-            storeAuthStateInCookie: false    // نلغيها لمنع تعارض الجلسات القديمة
+            // استخدام الذاكرة المؤقتة يضمن تسجيل الخروج التلقائي عند إغلاق الصفحة
+            cacheLocation: "sessionStorage", 
+            storeAuthStateInCookie: false    
         }
     },
     graphApiUrl: "https://graph.microsoft.com/v1.0",
@@ -23,7 +24,6 @@ const Config = {
     }
 };
 
-// Global State Variables
 let currentUserEmail = ""; 
 let currentUserName = "";
 let realRequests = [];

@@ -5,24 +5,18 @@ const AuthModule = (function() {
     
     const msalInstance = new msal.PublicClientApplication(Config.msalConfig);
 
-    // 1. تهيئة النظام ومحاولة الدخول الصامت (تجهيزاً للدمج مع Teams و Power Pages)
+    // 1. تهيئة النظام
     async function initializeAuth() {
         try {
             await msalInstance.handleRedirectPromise();
-            
-            const accounts = msalInstance.getAllAccounts();
-            if (accounts.length > 0) {
-                // تجديد الجلسة بصمت في الخلفية
-                await msalInstance.ssoSilent({ account: accounts[0] });
-            }
         } catch (error) {
-            console.warn("Silent SSO failed or no active session:", error);
+            console.warn("MSAL Init:", error);
         } finally {
             checkUserSession();
         }
     }
 
-    // 2. تحديث الواجهة بناءً على حالة الجلسة
+    // 2. تحديث الواجهة بناءً على حالة الجلسة الحالية
     function checkUserSession() {
         const accounts = msalInstance.getAllAccounts();
         const authBtn = document.getElementById('authActionButton');
@@ -69,13 +63,13 @@ const AuthModule = (function() {
             }
             
             const recentContainer = document.getElementById('recentActivityContainer');
-            if (recentContainer) {
+            if(recentContainer) {
                  recentContainer.innerHTML = '<p style="font-size: 13px; color: var(--text-muted);">Sign in to view recent activity.</p>';
             }
         }
     }
 
-    // 3. معالج الأزرار (دخول / خروج)
+    // 3. معالج النقر على الأزرار
     function handleAuthAction() {
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length > 0) {
@@ -85,36 +79,34 @@ const AuthModule = (function() {
         }
     }
 
-    // 4. تسجيل الدخول بسلاسة عبر النافذة المنبثقة
+    // 4. تسجيل الدخول النظيف (بدون مسح يدوي للذاكرة لتجنب كسر المكتبة)
     async function authenticateUser() {
         try {
             await msalInstance.loginPopup({
                 scopes: ["User.Read", "Sites.Read.All", "User.ReadBasic.All"],
-                prompt: "select_account" // لتمكين التبديل بين الحسابات
+                prompt: "select_account" // لضمان حرية تبديل الحسابات
             });
             checkUserSession(); 
         } catch (error) {
-            console.error("Popup Login Error:", error);
-            const ignoredErrors = ["user_cancelled", "interaction_in_progress", "popup_window_error"];
-            if (error.errorCode && !ignoredErrors.includes(error.errorCode)) {
-                alert("Authentication failed. Please check Azure AD permissions.");
+            if (error.errorCode !== "user_cancelled") {
+                console.warn("Login failed or was closed:", error.errorCode);
             }
         }
     }
 
-    // 5. تسجيل الخروج السليم (الاعتماد على MSAL لتنظيف الجلسة بأمان)
+    // 5. تسجيل الخروج السليم (المكتبة تنظف ذاكرتها بنفسها بعد إغلاق النافذة المنبثقة)
     async function logoutUser() {
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length === 0) return;
 
         try {
-            // المكتبة ستقوم بتنظيف بيانات المستخدم فقط بأمان تام
-            await msalInstance.logoutPopup({ account: accounts[0] });
+            await msalInstance.logoutPopup({ 
+                account: accounts[0] 
+            });
+            checkUserSession(); // تحديث الواجهة مباشرة بعد نجاح الخروج
         } catch (error) {
-            console.warn("Logout popup blocked or closed manually by user.", error);
-        } finally {
-            // تحديث الواجهة مباشرة فوراً
-            checkUserSession();
+            console.warn("Logout popup blocked or failed:", error);
+            checkUserSession(); // تحديث الواجهة كإجراء احتياطي
         }
     }
 
