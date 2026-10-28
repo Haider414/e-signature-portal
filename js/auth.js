@@ -16,7 +16,7 @@ const AuthModule = (function() {
         }
     }
 
-    // 2. تحديث الواجهة بناءً على حالة الجلسة الحالية
+    // 2. تحديث الواجهة بناءً على حالة الجلسة الحقيقية
     function checkUserSession() {
         const accounts = msalInstance.getAllAccounts();
         const authBtn = document.getElementById('authActionButton');
@@ -79,30 +79,32 @@ const AuthModule = (function() {
         }
     }
 
-    // 4. تسجيل الدخول الذكي (مع كاسر الأقفال الوهمية)
+    // 4. تسجيل الدخول الذكي (مع تجاهل الإنذارات الكاذبة وإزالة الـ Alert)
     async function authenticateUser() {
         try {
-            // التنظيف الاستباقي: إزالة قفل MSAL الوهمي الذي يمنع الدخول المباشر بعد الخروج
-            sessionStorage.removeItem("msal.interaction.status");
-
+            sessionStorage.removeItem("msal.interaction.status"); // إزالة أي قفل وهمي سابق
+            
             await msalInstance.loginPopup({
                 scopes: ["User.Read", "Sites.Read.All", "User.ReadBasic.All"],
                 prompt: "select_account"
             });
             checkUserSession(); 
         } catch (error) {
-            // معالجة الأخطاء الذكية
-            if (error.errorCode === "interaction_in_progress") {
-                // إذا أصر النظام على وجود قفل، نمسح الذاكرة بالكامل لإنقاذه
-                sessionStorage.clear();
-            } else if (error.errorCode !== "user_cancelled") {
-                alert("Authentication failed. Please try again.");
+            // التحقق الذكي: هل تم الدخول فعلياً رغم الخطأ؟
+            if (msalInstance.getAllAccounts().length > 0) {
+                console.log("Login succeeded silently despite MSAL false alarm.");
+                checkUserSession();
+                return; // نخرج بسلام دون أي خطأ
             }
-            console.warn("Login Action:", error);
+
+            // إذا فشل فعلاً (مثلاً المستخدم أغلق النافذة بنفسه)، ننظف الذاكرة بهدوء دون إزعاج
+            console.warn("Login process interrupted or false alarm:", error.errorCode);
+            sessionStorage.removeItem("msal.interaction.status");
+            checkUserSession();
         }
     }
 
-    // 5. تسجيل الخروج الجذري
+    // 5. تسجيل الخروج السلس (بدون رسائل خطأ)
     async function logoutUser() {
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length === 0) return;
@@ -112,10 +114,10 @@ const AuthModule = (function() {
                 account: accounts[0]
             });
         } catch (error) {
-            console.warn("Logout popup:", error);
+            // نتجاهل أي إنذار كاذب يصدر أثناء إغلاق نافذة الخروج
+            console.warn("Logout popup silent error ignored:", error.errorCode);
         } finally {
-            // السر هنا: تنظيف الذاكرة المؤقتة *بعد* انتهاء عملية الخروج بالكامل
-            // هذا يضمن أن النظام جاهز 100% لاستقبال تسجيل دخول جديد وفوري
+            // في كل الأحوال، نمسح الذاكرة بالكامل لتنظيف الجلسة وتحديث الواجهة
             sessionStorage.clear();
             checkUserSession();
         }
