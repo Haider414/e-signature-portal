@@ -5,13 +5,13 @@ const AuthModule = (function() {
     
     const msalInstance = new msal.PublicClientApplication(Config.msalConfig);
 
-    // 1. تهيئة النظام بهدوء تام دون توقع توجيهات وهمية
+    // 1. تهيئة النظام بهدوء تام بدون فحص توجيه وهمي يسبب رسائل خطأ
     async function initializeAuth() {
         try {
-            // نتخطى الـ handleRedirectPromise لأننا لا نستخدم التوجيه، ونكتفي بفحص الجلسة مباشرة
+            // تحقق مباشر وسريع من الحسابات المخزنة في الذاكرة دون محاولات توجيه فاشلة
             checkUserSession();
         } catch (error) {
-            console.warn("Init Check Warning:", error);
+            console.warn("Init check warning:", error);
             checkUserSession();
         }
     }
@@ -79,7 +79,7 @@ const AuthModule = (function() {
         }
     }
 
-    // 4. تسجيل الدخول الذكي
+    // 4. تسجيل الدخول الذكي عبر النافذة المنبثقة
     async function authenticateUser() {
         try {
             sessionStorage.removeItem("msal.interaction.status"); 
@@ -94,6 +94,7 @@ const AuthModule = (function() {
                 checkUserSession();
                 return;
             }
+            console.warn("Login process interrupted:", error.errorCode);
             sessionStorage.removeItem("msal.interaction.status");
             checkUserSession();
         }
@@ -109,7 +110,7 @@ const AuthModule = (function() {
                 account: accounts[0]
             });
         } catch (error) {
-            console.warn("Logout popup silent error ignored.");
+            console.warn("Logout popup silent error ignored:", error.errorCode);
         } finally {
             sessionStorage.clear();
             checkUserSession();
